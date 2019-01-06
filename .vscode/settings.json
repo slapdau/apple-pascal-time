@@ -2,5 +2,7 @@
     "files.associations": {
         "*.text": "pascal",
         "*.txt": "pascal"
-    }
+    },
+    "editor.detectIndentation": false,
+    "editor.tabSize": 8
 }
