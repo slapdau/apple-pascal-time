@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.text": "pascal",
+        "*.txt": "pascal"
+    }
+}
