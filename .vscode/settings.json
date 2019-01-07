@@ -4,5 +4,7 @@
         "*.txt": "pascal"
     },
     "editor.detectIndentation": false,
-    "editor.tabSize": 8
+"editor.tabSize": 4,
+"pascal.formatter.engine": "ptop",
+"pascal.tags.autoGenerate": false
 }
