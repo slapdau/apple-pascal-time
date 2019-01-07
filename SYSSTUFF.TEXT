@@ -1,3 +1,7 @@
+unit SYSSTUFF;
+
+interface
+
 (******************************************************************)
 (*                                                                *)
 (*  Copyright (c) 1978 Regents of the University of California.   *)
@@ -6,6 +10,7 @@
 (*  obtained from the Institute for Information Systems.          *)
 (*                                                                *)
 (******************************************************************)
+
 
 (************************************************)
 (*                                              *)
@@ -28,7 +33,7 @@
 
 CONST
     MMAXINT = 32767;   {Maximum integer value}
-    MAXUNIT = 12;      {Maximum physical unit # for UREAD}
+    MAXUNIT = 20;      {Maximum physical unit # for UREAD}
     MAXDIR = 77;       {Max number of entries in a directory}
     VIDLENG = 7;       {Number of chars in a volume ID}
     TIDLENG = 15;      {Number of chars in a title ID}
@@ -58,7 +63,7 @@ TYPE
     );
 
     {Code files used in GETCMD}
-    SYSFILE = (ASSMBLER,COMPILER,EDITOR,FILER,LINKER);
+    SYSFILE = (ASSEMBLER,COMPILER,EDITOR,FILER,LINKER);
 
     {Archival info...the date}
      DATEREC = PACKED RECORD
@@ -250,3 +255,12 @@ TYPE
     END {SYSGLOBREC};
 
     SYSGLOBP = ^SYSGLOBREC;
+
+function RDSYSGLOB:SYSGLOBP;
+
+implementation
+
+function RDSYSGLOB;
+external;
+
+end.

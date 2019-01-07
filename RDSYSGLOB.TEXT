@@ -4,20 +4,22 @@
 ; Pascal zero page temporary usage.
 RETURN          .equ    0
 CURR_MP         .equ    2
+IS_128K         .equ    4
 SRC_START       .equ    30
 SRC_END         .equ    32
 DST_START       .equ    34
+FLAVOR          .equ    0BF22   ; Flavor of system, incl. 128k status
 
 ;----------------------------------------------------------
 ; Zero page addresses of virtual machine registers.
-BASE     .equ    50      ; Base procedure pointer
-MP       .equ    52      ; Markstack pointer
-JTAB     .equ    54      ; Jump table pointer
-SEG      .equ    56      ; Segment pointer
-IPC      .equ    58      ; Interpreter program counter
-NP       .equ    5A      ; New pointer
-KP       .equ    5C      ; Program stack pointer
-STRP     .equ    5E      ; String pointer
+BASE    .equ    50      ; Base procedure pointer
+MP      .equ    52      ; Markstack pointer
+JTAB    .equ    54      ; Jump table pointer
+SEG     .equ    56      ; Segment pointer
+IPC     .equ    58      ; Interpreter program counter
+NP      .equ    5A      ; New pointer
+KP      .equ    5C      ; Program stack pointer
+STRP    .equ    5E      ; String pointer
 
 ;----------------------------------------------------------
 ; Offset addresses from MP
@@ -78,6 +80,12 @@ get_sys_ms
 ; 128k system. User P-Code is stored in auxiliary memory below $C000.
 ; P-Code for the operating system is stored in main memory above $D000.
 ;----------------------------------------------------------
+        ; Get 128k system status
+        lda     FLAVOR
+        and     #060
+        eor     #040
+        sta     IS_128K ; Zero if not a 128k system.
+        
         ; Initialise the search by copying pointers to the current
         ; markstack and attribute table.
         move    MP,CURR_MP
@@ -103,17 +111,21 @@ nextproc
         sta     SRC_START+1
         move    TBL_ADDR,DST_START
         
+        ; Is this a 128k system?
+        lda     IS_128K
+        beq     $1
+        
         ; Is this a main or auxiliary copy?
         lda     SRC_START+1
         cmp     #0C0
         bcs     $1
-                
-        ; Below $C000, auxiliary copy
+        
+        ; 128k and below $C000, auxiliary copy
         clc                             ; From auxiliary to main
         jsr     auxmove
         jmp     $2
         
-        ; Above $C000, main copy
+        ; Non-128k or above $C000, main copy
 $1      jsr     main_cpy
                 
         ; If the current lexical level is -1, then we've found
@@ -121,7 +133,7 @@ $1      jsr     main_cpy
 $2      lda     TBL_CPY+JTAB_SZ-1
         cmp     #0FF            
         beq     done
-                
+        
         ; Otherwise we need to follow the dynamic link up the
         ; call stack.
         ; n.b. We need to follow dynamic links instead of static links
@@ -143,14 +155,14 @@ $2      lda     TBL_CPY+JTAB_SZ-1
         pla
         sta     CURR_MP
         jmp     nextproc        ; Read the next attribute table.
-                
+        
 done
         rts                     ; Leave markstack pointer in $02-$03
 
 TBL_CPY
         .block  0A
 TBL_ADDR
-        .word   TBL_CPY         ; For the relocated address
+       .word   TBL_CPY          ; For the relocated address
 
 
 auxmove
