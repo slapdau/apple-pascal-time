@@ -1,0 +1,266 @@
+        .macro  POP
+        pla
+        sta     %1
+        pla
+        sta     %1+1
+        .endm
+
+        .macro  PUSH
+        lda     %1+1
+        pha
+        lda     %1
+        pha
+        .endm
+
+        .macro  MOVE
+        lda     %1
+        sta     %2
+        lda     %1+1
+        sta     %2+1
+        .endm
+
+        .proc   IIGSCLK
+        
+        sta     AREG           ; Save AREG contents (dev#)
+        pop     RETURN
+        
+        ; Branch on XREG for INIT, READ, WRITE, STATUS
+        txa
+        cmp     #2
+        beq     $1      ; INIT
+        cmp     #4
+        beq     $2      ; STATUS
+        cmp     #0
+        beq     $3      ; PMS
+        cmp     #1
+        beq     $3      ; PMS
+        
+        ; In case the XREG isn't valid
+        jmp     RET
+
+        ; Jump block to extend branch range.
+$1      jmp     INIT
+$2      jmp     STATUS
+$3      jmp     PMS
+        
+PMS     pop     BLKNUM
+        pop     BYTECNT
+        pop     BUFADR
+        pop     UNITNUM
+        pop     CONTROL
+        txa
+        beq     READ
+        jmp     WRITE
+
+        ; Zero page usage for READ
+        
+RDLEN           .equ    0
+SRC_START       .equ    030
+SRC_END         .equ    032
+DST_START       .equ    034
+
+READ    jsr     GOTOCK
+        ; Driver's read code goes HERE
+        
+        ; jmp     *
+        
+        ; Zero the request buffer
+        move    BUFADR,SRC_START
+        clc
+        lda     BUFADR
+        adc     BYTECNT
+        sta     SRC_END
+        lda     BUFADR+1
+        adc     BYTECNT+1
+        sta     SRC_END+1
+        sec
+        lda     SRC_END
+        sbc     #1
+        sta     SRC_END
+        lda     SRC_END+1
+        sbc     #0
+        sta     SRC_END+1
+        ldx     #0
+        jsr     MEMFILL
+        
+        ; If there isn't valid time data to return, read it.
+        lda     PTR
+        bne     $1
+        lda     PTR+1
+        bne     $1
+        jsr     RDTIME
+        
+        ; Calculate the remaining time data length
+$1      sec
+        lda     END
+        sbc     PTR
+        sta     RDLEN
+        lda     END+1
+        sbc     PTR+1
+        sta     RDLEN+1
+        
+        ; Use the request buffer length instead if it's shorter
+        lda     RDLEN
+        cmp     BYTECNT
+        lda     RDLEN+1
+        sbc     BYTECNT+1
+        bcc     $2
+        move    BYTECNT,RDLEN
+
+        ; Copy from the current read buffer to the request buffer
+$2      move    PTR,SRC_START
+        clc
+        lda     SRC_START
+        adc     RDLEN
+        sta     SRC_END
+        lda     SRC_START+1
+        adc     RDLEN+1
+        sta     SRC_END+1
+        sec
+        lda     SRC_END
+        sbc     #1
+        sta     SRC_END
+        lda     SRC_END+1
+        sbc     #0
+        sta     SRC_END+1
+        move    BUFADR,DST_START
+        jsr     MEMCPY
+        
+        move    SRC_START,PTR           ; Update read buffer start.
+
+        ; And invalidate it if the end is reached.
+        lda     PTR
+        cmp     END
+        bne     $3
+        lda     PTR+1
+        cmp     END+1
+        bne     $3
+        lda     #0
+        sta     PTR
+        sta     PTR+1
+
+$3      ldx     #0
+        jmp     RET
+
+RDTIME  move    TIMEADR,PTR
+        clc
+        lda     TIMEADR
+        adc     TIMELEN
+        sta     END
+        lda     TIMEADR+1
+        adc     TIMELEN+1
+        sta     END+1
+        rts
+
+WRITE   jsr     GOTOCK
+        ; Driver's write code goes HERE
+        ldx     #0
+        jmp     RET
+
+MEMCPY
+;----------------------------------------------------------
+; Copy a block of memory.
+;----------------------------------------------------------
+        pha
+        tya
+        pha
+        ldy     #0      ; Dummy index.
+$1      lda     @SRC_START,y
+        sta     @DST_START,y
+        inc     DST_START
+        bne     $2
+        inc     DST_START+1
+$2      lda     SRC_START
+        cmp     SRC_END
+        lda     SRC_START+1
+        sbc     SRC_END+1
+        inc     SRC_START
+        bne     $3
+        inc     SRC_START+1
+$3      bcc     $1
+        pla
+        tay
+        pla
+        rts
+
+MEMFILL
+;----------------------------------------------------------
+; Fill a block of memory with the contents of the X register.
+;----------------------------------------------------------
+        pha
+        tya
+        pha
+        ldy     #0      ; Dummy index.
+$1      txa
+        sta     @SRC_START,y
+        lda     SRC_START
+        cmp     SRC_END
+        lda     SRC_START+1
+        sbc     SRC_END+1
+        inc     SRC_START
+        bne     $2
+        inc     SRC_START+1
+$2      bcc     $1
+        pla
+        tay
+        pla
+        rts
+
+        ; Zero page usage for GOTOCK
+CONCKAD         .equ    0
+ACJVAFLD        .equ    0E2
+
+GOTOCK  ldy     #55.            ; Offset to address of CONCK
+        lda     @ACJVAFLD,y
+        sta     CONCKAD
+        iny
+        lda     @ACJVAFLD,y
+        sta     CONCKAD+1
+        lda     CKR+1           ; Set it up to return to
+        pha                     ; CONCKRT after the CONCK call
+        lda     CKR
+        pha
+        jmp     @CONCKAD        ; Jump to CONCK
+CONCKRT rts
+CKR     .word   CONCKRT-1
+
+INIT    ; Driver's code for initialisation goes HERE
+        lda     #0
+        sta     PTR
+        sta     PTR+1
+        sta     END
+        sta     END+1
+        ldx     #0
+        jmp     RET
+
+STATUS  pop     BUFADR
+        pop     CONTROL
+        ; Driver's code for status information goes HERE
+        ldx     #0
+        ; Fall through to RET
+
+RET     push    RETURN
+        lda     AREG
+        rts
+
+RETURN  .word   0               ; Can't use zero page for these
+AREG    .word   0               ; since we leave our environment
+                                ; when going to CONCK
+CONTROL .word   0
+UNITNUM .word   0
+BUFADR  .word   0
+BYTECNT .word   0
+BLKNUM  .word   0
+
+PTR     .word   0
+END     .word   0
+
+                ;YY MM DD hh mm ss
+TIMESTR .ascii  "18 01 10 21 17 45"
+        .byte   00D, 003
+
+TIMELEN .word   *-TIMESTR
+TIMEADR .word   TIMESTR
+
+        .end
+        
