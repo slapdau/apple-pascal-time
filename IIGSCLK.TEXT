@@ -27,22 +27,29 @@
         ; Branch on XREG for INIT, READ, WRITE, STATUS
         txa
         cmp     #2
-        beq     $1      ; INIT
+        beq     INIT
         cmp     #4
-        beq     $2      ; STATUS
+        beq     STATUS
         cmp     #0
-        beq     $3      ; PMS
+        beq     PMS
         cmp     #1
-        beq     $3      ; PMS
+        beq     PMS
         
         ; In case the XREG isn't valid
+        ldx     #3      ; Illegal I/O request
         jmp     RET
 
-        ; Jump block to extend branch range.
-$1      jmp     INIT
-$2      jmp     STATUS
-$3      jmp     PMS
-        
+INIT    ; Driver's code for initialisation goes HERE
+        lda     #0
+        ldx     #0
+        jmp     RET
+
+STATUS  pop     BUFADR
+        pop     CONTROL
+        ; Driver's code for status information goes HERE
+        ldx     #0
+        jmp     RET
+
 PMS     pop     BLKNUM
         pop     BYTECNT
         pop     BUFADR
@@ -50,160 +57,28 @@ PMS     pop     BLKNUM
         pop     CONTROL
         txa
         beq     READ
-        jmp     WRITE
-
-        ; Zero page usage for READ
-        
-RDLEN           .equ    0
-SRC_START       .equ    030
-SRC_END         .equ    032
-DST_START       .equ    034
-
-READ    jsr     GOTOCK
-        ; Driver's read code goes HERE
-        
-        ; jmp     *
-        
-        ; Zero the request buffer
-        move    BUFADR,SRC_START
-        clc
-        lda     BUFADR
-        adc     BYTECNT
-        sta     SRC_END
-        lda     BUFADR+1
-        adc     BYTECNT+1
-        sta     SRC_END+1
-        sec
-        lda     SRC_END
-        sbc     #1
-        sta     SRC_END
-        lda     SRC_END+1
-        sbc     #0
-        sta     SRC_END+1
-        ldx     #0
-        jsr     MEMFILL
-        
-        ; If there isn't valid time data to return, read it.
-        lda     PTR
-        bne     $1
-        lda     PTR+1
-        bne     $1
-        jsr     RDTIME
-        
-        ; Calculate the remaining time data length
-$1      sec
-        lda     END
-        sbc     PTR
-        sta     RDLEN
-        lda     END+1
-        sbc     PTR+1
-        sta     RDLEN+1
-        
-        ; Use the request buffer length instead if it's shorter
-        lda     RDLEN
-        cmp     BYTECNT
-        lda     RDLEN+1
-        sbc     BYTECNT+1
-        bcc     $2
-        move    BYTECNT,RDLEN
-
-        ; Copy from the current read buffer to the request buffer
-$2      move    PTR,SRC_START
-        clc
-        lda     SRC_START
-        adc     RDLEN
-        sta     SRC_END
-        lda     SRC_START+1
-        adc     RDLEN+1
-        sta     SRC_END+1
-        sec
-        lda     SRC_END
-        sbc     #1
-        sta     SRC_END
-        lda     SRC_END+1
-        sbc     #0
-        sta     SRC_END+1
-        move    BUFADR,DST_START
-        jsr     MEMCPY
-        
-        move    SRC_START,PTR           ; Update read buffer start.
-
-        ; And invalidate it if the end is reached.
-        lda     PTR
-        cmp     END
-        bne     $3
-        lda     PTR+1
-        cmp     END+1
-        bne     $3
-        lda     #0
-        sta     PTR
-        sta     PTR+1
-
-$3      ldx     #0
-        jmp     RET
-
-RDTIME  move    TIMEADR,PTR
-        clc
-        lda     TIMEADR
-        adc     TIMELEN
-        sta     END
-        lda     TIMEADR+1
-        adc     TIMELEN+1
-        sta     END+1
-        rts
+        ; Fall through to WRITE
 
 WRITE   jsr     GOTOCK
-        ; Driver's write code goes HERE
+        ; Drivers write code goes HERE
         ldx     #0
         jmp     RET
+        
+        ; Zero page usage for READ
+PTIME   .equ    0
 
-MEMCPY
-;----------------------------------------------------------
-; Copy a block of memory.
-;----------------------------------------------------------
-        pha
-        tya
-        pha
-        ldy     #0      ; Dummy index.
-$1      lda     @SRC_START,y
-        sta     @DST_START,y
-        inc     DST_START
-        bne     $2
-        inc     DST_START+1
-$2      lda     SRC_START
-        cmp     SRC_END
-        lda     SRC_START+1
-        sbc     SRC_END+1
-        inc     SRC_START
-        bne     $3
-        inc     SRC_START+1
-$3      bcc     $1
-        pla
-        tay
-        pla
-        rts
+STATEREG .equ   0C068
 
-MEMFILL
-;----------------------------------------------------------
-; Fill a block of memory with the contents of the X register.
-;----------------------------------------------------------
-        pha
-        tya
-        pha
-        ldy     #0      ; Dummy index.
-$1      txa
-        sta     @SRC_START,y
-        lda     SRC_START
-        cmp     SRC_END
-        lda     SRC_START+1
-        sbc     SRC_END+1
-        inc     SRC_START
-        bne     $2
-        inc     SRC_START+1
-$2      bcc     $1
-        pla
-        tay
-        pla
+READ    jsr     GOTOCK
+        
+        move    BUFADR,PTIME
+        jsr     RDTIME
+        
+$3      ldx     #0
+        ; Fall through to RET
+
+RET     push    RETURN
+        lda     AREG
         rts
 
         ; Zero page usage for GOTOCK
@@ -224,25 +99,129 @@ GOTOCK  ldy     #55.            ; Offset to address of CONCK
 CONCKRT rts
 CKR     .word   CONCKRT-1
 
-INIT    ; Driver's code for initialisation goes HERE
+RDTIME
+        jsr     RD_TIME_HEX
+        
+        ; Seconds
+        pla
+        sta     WKSPACE+4
         lda     #0
-        sta     PTR
-        sta     PTR+1
-        sta     END
-        sta     END+1
-        ldx     #0
-        jmp     RET
+        sta     WKSPACE+5
+        sta     WKSPACE+2
+        
+        ; Minutes
+        clc
+        pla
+        ror     A
+        ror     WKSPACE+2
+        ror     A
+        ror     WKSPACE+2
+        ror     A
+        ror     WKSPACE+2
+        sta     WKSPACE+3
+        
+        ; Hour
+        pla
+        ora     WKSPACE+2
+        sta     WKSPACE+2
+        
+        ; Year
+        pla
+$1      cmp     #100.
+        bcc     $2
+        sbc     #100.
+        bcs     $1
+$2      sta     WKSPACE+1
+        
+        ; Day
+        pla
+        clc
+        adc     #1
+        asl     A
+        asl     A
+        asl     A
+        rol     A
+        rol     WKSPACE+1
+        sta     WKSPACE
+        
+        ; Month
+        pla
+        clc
+        adc     #1
+        ora     WKSPACE
+        sta     WKSPACE
+        
+        ; Clear null byte and day of week from stack.
+        pla
+        pla
+        
+        ldy     #5
+$3      lda     WKSPACE,y
+        sta     @PTIME,y
+        dey
+        bpl     $3
 
-STATUS  pop     BUFADR
-        pop     CONTROL
-        ; Driver's code for status information goes HERE
-        ldx     #0
-        ; Fall through to RET
-
-RET     push    RETURN
-        lda     AREG
+        push RETURN
         rts
 
+WKSPACE .block  6
+        
+RD_TIME_HEX
+        pop     $1
+        
+        lda     STATEREG
+        sta     $3
+        and     #0CF
+        sta     STATEREG
+        
+        php
+        sei             ; Disable interupts. Doubt Pascal interrupt
+        pla             ; handlers could cope.
+        sta     $2
+        
+        ; The following code blob is position independant 65816 code
+        ; that calls ReadTimeHex in the IIgs Miscelaneous Tool Set.
+        ; It's assembled externally.
+
+        .byte   018             ; clc
+        .byte   0FB             ; xce
+        .byte   0C2,030         ; rep #$30
+        .byte   0A9,000,000     ; lda #$0000
+        .byte   048             ; pha
+        .byte   048             ; pha
+        .byte   048             ; pha
+        .byte   048             ; pha
+        .byte   0A2,003,00D     ; ldx #$0D03
+        .byte   022,000,000,0E1 ; jsl $e10000
+        .byte   038             ; sec
+        .byte   0FB             ; xce
+        
+        ; After the return to the caller, the stack will look like:
+        ; | Prev. Content|
+        ; | weekday      | 1-7, with 1=Sunday
+        ; | 0            |
+        ; | month        | 0-11, with 0=January
+        ; | day          | 0-30
+        ; | curYear      | Current year minus 1900
+        ; | hour         | 0-23
+        ; | minute       | 0-59
+        ; | second       | 0-59
+        ; |--------------| <-- SP
+        
+        lda     $2
+        pha
+        plp
+        
+        lda     $3
+        sta     STATEREG
+        
+        push    $1
+        rts
+
+$1      .word   0
+$2      .byte   0
+$3      .byte   0
+        
 RETURN  .word   0               ; Can't use zero page for these
 AREG    .word   0               ; since we leave our environment
                                 ; when going to CONCK
@@ -252,15 +231,28 @@ BUFADR  .word   0
 BYTECNT .word   0
 BLKNUM  .word   0
 
-PTR     .word   0
-END     .word   0
+; daterec = packed record
+;     month: 0..12;
+;     day  : 0..31;
+;     year : 0..100
+; end {daterec};
+; timerec = packed record
+;     hour   : 0..23;
+;     minute : 0..59;
+;     filler1: 0..31;
+;     second : 0..59;
+;     filler2: 0..2047
+; end {timerec};
+; clockrec = record
+;     date: daterec;
+;     time: timerec
+; end {clockrec};
 
-                ;YY MM DD hh mm ss
-TIMESTR .ascii  "18 01 10 21 17 45"
-        .byte   00D, 003
-
-TIMELEN .word   *-TIMESTR
-TIMEADR .word   TIMESTR
+        .if     0
+                ; 21:24:45, 12-Jan-18
+TIMEVAL .word   024c1, 00315, 0002d
+        .endc
 
         .end
+
         
