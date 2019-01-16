@@ -1,0 +1,112 @@
+program startup;
+
+{$I-} (* Need to do our own I/O checking and exit gracefully. *)
+
+uses
+    {$U sysstuff.code} sysstuff,
+    {$U clockstuff.code} clockstuff;
+
+type
+    byte = 0..255;
+
+var
+    sysglob:sysglobp;
+    now:clockinfo;
+    dirinfo:directory;
+    bootunit:unitnum;
+
+    function peek(address:integer):byte;
+    
+    type
+        varrec = packed array[0..0] of byte;
+    
+    var
+        mem : record case boolean of
+            false : ( addr : integer );
+            true : ( val : ^varrec )
+        end {mem};
+    
+    begin
+        mem.addr := address;
+        peek := mem.val^[0];
+    end;
+    
+    procedure greeting;
+    
+    var
+        version, systype: byte;
+        count:integer;
+    
+    begin
+       version := peek(-16607);
+       systype := (peek(-16606) div 32) mod 4;
+       page(output);
+       for count := 1 to 8 do
+           writeln;
+       write('Welcome ',sysglob^.syvid,', to Apple II Pascal ');
+       case version of
+           2:writeln('1.1');
+           3:writeln('1.2');
+           4:writeln('1.3');
+           otherwise writeln('?.?');
+       end;
+       writeln;
+       writeln('Based on UCSD Pascal II.1');
+       writeln;
+       write('Current date is ');
+       with sysglob^.thedate do
+       begin
+           write(day,'-');
+           case month of
+               1 : write('Jan');
+               2 : write('Feb');
+               3 : write('Mar');
+               4 : write('Apr');
+               5 : write('May');
+               6 : write('Jun');
+               7 : write('Jul');
+               8 : write('Aug');
+               9 : write('Sep');
+               10: write('Oct');
+               11: write('Nov');
+               12: write('Dec');
+               otherwise write('???')
+           end;
+           writeln('-',year);
+       end;
+       writeln;
+       writeln;
+       write('Pascal system size is ');
+       case systype of
+           0:writeln('64K');
+           1:writeln('48K');
+           2:writeln('128K');
+           otherwise writeln('??K');
+       end;
+       writeln;
+       writeln;
+       writeln;
+       writeln('Copyright Apple Computer 1979,1980,1983,1984,1985');
+       writeln('Copyright U.C. Regents 1979');
+    end;
+
+begin
+    ReadClock(now);
+    sysglob := rdsysglob;
+    sysglob^.thedate := now.date;
+    
+    greetings;
+    
+    bootunit := sysglob^.syscom^.sysunit;
+    unitread(bootunit, dirinfo, sizeof(directory), DIRBLK);
+    
+    if ioresult <> 0 then
+        exit(program);
+    
+    if dirinfo[0].dvid <> sysglob^.syvid then
+        exit(program);
+    
+    dirinfo[0].dlastboot := now.date;
+    unitwrite(bootunit, dirinfo, sizeof(directory), DIRBLK);
+end.
+
