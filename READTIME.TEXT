@@ -1,0 +1,16 @@
+program READTIME;
+
+uses
+    {$U clockstuff.code} clockstuff;
+
+var
+    now: clockrec;
+    
+begin
+    readclock(now);
+    with now.time do
+        write(hour:2,':',minute:2,':',second:2);
+    write(', ');
+    with now.date do
+        writeln(day:2,'/',month:2,'/',year:2)
+end.

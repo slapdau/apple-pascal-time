@@ -1,0 +1,44 @@
+unit ClockStuff;
+
+interface
+
+type 
+    dateinfo = packed record
+        month: 0..12;
+        day  : 0..31;
+        year : 0..100
+    end {dateinfo};
+    timeinfo = packed record
+        hour   : 0..23;
+        minute : 0..59;
+        filler1: 0..31;
+        second : 0..59;
+        filler2: 0..2047
+    end {timeinfo}; 
+    clockinfo = record
+        date: dateinfo;
+        time: timeinfo;
+    end {clockinfo};
+
+procedure ClockUnit(unitnum:integer);
+procedure ReadClock(var instant:clockinfo);
+
+implementation
+
+var
+    vclockunit:integer;
+
+procedure ClockUnit;
+begin
+    vclockunit := unitnum
+end;
+
+procedure ReadClock;
+begin
+    unitread(vclockunit,instant,sizeof(clockinfo))
+end;
+
+begin
+    vclockunit := 130;
+end.
+
