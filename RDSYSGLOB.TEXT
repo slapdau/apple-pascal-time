@@ -5,9 +5,9 @@
 RETURN          .equ    0
 CURR_MP         .equ    2
 IS_128K         .equ    4
-SRC_START       .equ    30
-SRC_END         .equ    32
-DST_START       .equ    34
+SRC_START       .equ    30.
+SRC_END         .equ    32.
+DST_START       .equ    34.
 FLAVOR          .equ    0BF22   ; Flavor of system, incl. 128k status
 
 ;----------------------------------------------------------
@@ -204,7 +204,6 @@ main_cpy
         pha
         tya
         pha
-        pla
         ldy     #0      ; Dummy index.
 $1      lda     @SRC_START,y
         sta     @DST_START,y
@@ -219,6 +218,7 @@ $2      lda     SRC_START
         bne     $3
         inc     SRC_START+1
 $3      bcc     $1
+        pla
         tay
         pla
         rts
