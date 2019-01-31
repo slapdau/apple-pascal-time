@@ -20,14 +20,31 @@ type
 
 var
     now:clockrec;
+    field:string;
     
-procedure rdtime(var now:clockrec);
+procedure ReadClock(var now:clockrec);
 external;
 
+procedure PadTimeField(value:integer; var result:string);
+
 begin
-    rdtime(now);
-    with now.time do
-        writeln(hour:2,':',minute:2,':',second:2);
+    result := '??';
+    if (value >= 0) and (value <= 99) then begin
+        result[1] := chr(ord('0')+value div 10);
+        result[2] := chr(ord('0')+value mod 10)
+    end;
+end;
+
+begin
+    ReadClock(now);
+    with now.time do begin
+        PadTimeField(hour,field);
+        write(field,':');
+        PadTimeField(minute,field);
+        write(field,':');
+        PadTimeField(second,field);
+        writeln(field);
+    end;
     with now.date do
         writeln(day:2,'/',month:2,'/',year:2)
 end.

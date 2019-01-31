@@ -4,7 +4,7 @@ uses
     {$U clockstuff.code} clockstuff;
 
 var
-    now: clockrec;
+    now: clockinfo;
     
 begin
     readclock(now);

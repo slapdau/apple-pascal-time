@@ -1,4 +1,110 @@
-        .include STDMACRO
+        .macro  POP
+        pla
+        sta     %1
+        pla
+        sta     %1+1
+        .endm
+
+        .macro  PUSH
+        lda     %1+1
+        pha
+        lda     %1
+        pha
+        .endm
+
+        .macro  MOVE
+        lda     %1
+        sta     %2
+        lda     %1+1
+        sta     %2+1
+        .endm
+
+        .proc   CLKUNIT
+        
+        sta     AREG           ; Save AREG contents (dev#)
+        pop     RETURN
+        
+        ; Branch on XREG for INIT, READ, WRITE, STATUS
+        txa
+        cmp     #2
+        beq     INIT
+        cmp     #4
+        beq     STATUS
+        cmp     #0
+        beq     PMS
+        cmp     #1
+        beq     PMS
+        
+        ; In case the XREG isn't valid
+        ldx     #3      ; Illegal I/O request
+        jmp     RET
+
+INIT    ; Driver's code for initialisation goes HERE
+        lda     #0
+        ldx     #0
+        jmp     RET
+
+STATUS  pop     BUFADR
+        pop     CONTROL
+        ; Driver's code for status information goes HERE
+        ldx     #0
+        jmp     RET
+
+PMS     pop     BLKNUM
+        pop     BYTECNT
+        pop     BUFADR
+        pop     UNITNUM
+        pop     CONTROL
+        txa
+        beq     READ
+        ; Fall through to WRITE
+
+WRITE   jsr     GOTOCK
+        ; Drivers write code goes HERE
+        ldx     #0
+        jmp     RET
+        
+        ; Zero page usage for READ
+PTIME   .equ    0.
+
+READ    jsr     GOTOCK
+        
+        move    BUFADR,PTIME
+        jsr     RDTIME
+        
+$3      ldx     #0
+        ; Fall through to RET
+
+RET     push    RETURN
+        lda     AREG
+        rts
+
+        ; Zero page usage for GOTOCK
+CONCKAD         .equ    0
+ACJVAFLD        .equ    0E2
+
+GOTOCK  ldy     #55.            ; Offset to address of CONCK
+        lda     @ACJVAFLD,y
+        sta     CONCKAD
+        iny
+        lda     @ACJVAFLD,y
+        sta     CONCKAD+1
+        lda     CKR+1           ; Set it up to return to
+        pha                     ; CONCKRT after the CONCK call
+        lda     CKR
+        pha
+        jmp     @CONCKAD        ; Jump to CONCK
+CONCKRT rts
+CKR     .word   CONCKRT-1
+
+RETURN  .word   0               ; Can't use zero page for these
+AREG    .word   0               ; since we leave our environment
+                                ; when going to CONCK
+CONTROL .word   0
+UNITNUM .word   0
+BUFADR  .word   0
+BYTECNT .word   0
+BLKNUM  .word   0
 
 ; daterec = packed record
 ;     month: 0..12;
@@ -19,17 +125,14 @@
 
 ; procedure rdtime(var now:clockrec);
 ; external;
-
-RETURN  .equ    0
-PTIME   .equ    2
-WKSPACE .equ    4
+        
+        .if     0
+PTIME   .equ    0.
+        .endc
 
 STATEREG .equ   0C068
 
-        .proc   RDTIME,1
-        pop     RETURN
-        pop     PTIME
-        
+RDTIME
         jsr     RD_TIME_HEX
         
         ; Seconds
@@ -91,8 +194,9 @@ $3      lda     WKSPACE,y
         dey
         bpl     $3
 
-        push RETURN
         rts
+        
+WKSPACE .block  6
         
 RD_TIME_HEX
         pop     $1
@@ -149,7 +253,12 @@ RD_TIME_HEX
 $1      .word   0
 $2      .byte   0
 $3      .byte   0
-
+         
+        .if     0
                 ; 21:24:45, 12-Jan-18
-; TIMEVAL .word   024c1, 00315, 0002d
+TIMEVAL .word   024c1, 00315, 0002d
+        .endc
+
         .end
+
+        
