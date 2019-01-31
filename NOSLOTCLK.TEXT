@@ -1,0 +1,192 @@
+        .macro  POP
+        pla
+        sta     %1
+        pla
+        sta     %1+1
+        .endm
+
+        .macro  PUSH
+        lda     %1+1
+        pha
+        lda     %1
+        pha
+        .endm
+
+; daterec = packed record
+;     month: 0..12;
+;     day  : 0..31;
+;     year : 0..100
+; end {daterec};
+; timerec = packed record
+;     hour   : 0..23;
+;     minute : 0..59;
+;     filler1: 0..31;
+;     second : 0..59;
+;     filler2: 0..2047
+; end {timerec};
+; clockrec = record
+;     date: daterec;
+;     time: timerec
+; end {clockrec};
+
+; procedure ReadClock(var now:clockrec);
+; external;
+
+RDCXROM .equ    0C015
+CLCXROM .equ    0C007
+STCXROM .equ    0C006
+
+CLKWR0  .equ    0C300
+CLKWR1  .equ    0C301
+CLKRD   .equ    0C304
+
+RETURN  .equ    0.
+PTIME   .equ    2.
+TEMP    .equ    4.
+
+WKSPACE .equ    6.
+
+TIME    .equ    28.
+
+SECS    .equ    TIME+6
+MINS    .equ    TIME+5
+HOURS   .equ    TIME+4
+DAY     .equ    TIME+2
+MNTH    .equ    TIME+1
+YEAR    .equ    TIME+0
+
+        .proc   READCLOCK,1
+        pop     RETURN
+        pop     PTIME
+        
+        jsr     RD_TIME_HEX
+        
+        ldy     #007
+$1      lda     TIME,y
+        jsr     BCD2BIN
+        sta     TIME,y
+        dey
+        bpl     $1
+        
+        ; Zero out the return value
+        ldy     #005
+        lda     #000
+$2      sta     WKSPACE,y
+        dey
+        bpl     $2
+        
+        ; Seconds
+        lda     SECS
+        sta     WKSPACE+4
+        
+        ; Minutes
+        clc
+        lda     MINS
+        ror     a
+        ror     WKSPACE+2
+        ror     a
+        ror     WKSPACE+2
+        ror     a
+        ror     WKSPACE+2
+        sta     WKSPACE+3
+        
+        ; Hour
+        lda     HOURS
+        ora     WKSPACE+2
+        sta     WKSPACE+2
+        
+        ; Year
+        lda     YEAR
+        sta     WKSPACE+1
+        
+        ; Day
+        lda     DAY
+        asl     a
+        asl     a
+        asl     a
+        asl     a
+        rol     WKSPACE+1
+        sta     WKSPACE
+        
+        ; Month
+        lda     MNTH
+        ora     WKSPACE
+        sta     WKSPACE
+        
+        ; Copy the return value to the caller
+        ldy     #005
+$3      lda     WKSPACE,y
+        sta     @PTIME,y
+        dey
+        bpl     $3
+        
+        push RETURN
+        rts
+        
+RD_TIME_HEX
+        bit     RDCXROM
+        php                     ; Save interrupt and internal ROM state
+        sei
+        sta     CLCXROM         ; Use internal ROM for the Cx pages
+        
+        jsr     UNLK_CLK
+        jsr     RD_CLK
+
+        plp
+        bpl     $1
+        sta     STCXROM         ; Restore card ROM for the Cx pages
+$1      rts
+
+UNLK_CLK
+        lda     CLKRD
+        ldx     #007
+$1      ldy     #007
+        lda     unlkseq,x
+        sta     TEMP
+$2      ror     TEMP
+        bcc     $3
+        lda     CLKWR1
+        bcs     $4
+$3      lda     CLKWR0
+$4      dey
+        bpl     $2
+        dex
+        bpl     $1
+        rts
+
+unlkseq .byte   05C,0A3,03A,0C5,05C,0A3,03A,0C5
+
+RD_CLK
+        ldx     #007
+$1      ldy     #007
+$2      lda     CLKRD
+        ror     A
+        ror     TEMP
+        dey
+        bpl     $2
+        lda     TEMP
+        sta     TIME,x
+        dex
+        bpl     $1
+        rts
+        
+BCD2BIN
+        clc
+        pha
+        and     #00F
+        sta     TEMP
+        pla
+        and     #0F0
+        lsr     a
+        pha
+        lsr     a
+        lsr     a
+        adc     TEMP
+        sta     TEMP
+        pla
+        adc     TEMP
+        rts
+        
+                ; 21:24:45, 12-Jan-18
+; TIMEVAL .word   024c1, 00315, 0002d
+        .end
