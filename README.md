@@ -1,6 +1,6 @@
 # Apple Pascal Time and OS Global Variables
 
-This is a wildly anachronistic project gives Apple Pascal running on an Apple
+This is a wildly anachronistic project to give Apple Pascal running on an Apple
 II series computer the ability to read a hardware Real Time Clock (RTC) and
 update the current date as recorded by the Pascal Operating System.
 
@@ -9,7 +9,7 @@ update the current date as recorded by the Pascal Operating System.
 If you're reading this, chances are you already know the background. But let me
 relate history just in case someone stumbles on this unwittingly.
 
-Apple Pascal, based on UCSD Pascal, for the Apple II series of machines was
+Apple Pascal, based on UCSD Pascal, for the Apple II series of machines, was
 published in 1979. While UCSD had support for time, there was no RTC support.
 The only time support was access to a free running system clock to measure
 execution time. Apple Pascal didn't even have that since Apple II hardware had
@@ -32,7 +32,7 @@ which I was very bad at.
 The ProDOS line of operating systems did have clock support. The original ProDOS
 support was basic. It also set the creation and/or modification
 time and date when a file was saved. But if there was a supported system clock
-available, the values would be read from that.
+available, the values would be read from that, automatically as necessary.
 
 Nostalgia means I've been using Apple Pascal on Applewin and GSport. I still
 have a bad memory and I wanted clock support. Applewin emulates a No-Slot Clock.
@@ -60,7 +60,8 @@ However the P-machine internals were documented, so I came up with an external
 assembly procedure that read the system registers, and walked the procedure call
 dynamic links back to the head of the call stack. It was very interesting, and
 took a long time to get right. Then I discovered a book that explained how to
-use the `$U-` compiler option. Doing this way, only took an hour or so.
+use the `$U-` compiler option. Doing things this way only took an hour or so to
+implement.
 
 ## Catalogue
 
@@ -71,7 +72,7 @@ use the `$U-` compiler option. Doing this way, only took an hour or so.
  * **`SYSSTU.ASM.TEXT`** -- An assembly routine for locating the global
    variables of the Pascal runtime system. Operates by walking the dynamic stack
    frames up to the top looking for the procedure at lexical level -1.
-   Positively fascinated. But using the `$U-` compiler option is a much better
+   Positively fascinating. But using the `$U-` compiler option is a much better
    solution. See `STARTUP.TEXT`.
  * **`USERDRIVER.TEXT`** -- The sample device driver, more or less, from appendix A
    of the Apple Pascal 1.3 Device Support Tools documentation.
@@ -89,25 +90,26 @@ use the `$U-` compiler option. Doing this way, only took an hour or so.
    linked directly into a program. Originally intended for use in KEGS and its descendants.
  * **`NOSLOTCLK.TEXT`** -- A No Slot Clock reading routine. Doesn't do a proper
    search for the clock installation location. Simply assumes that it is
-   accessible at $C3xx.
+   accessible at $C3xx. This works just fine inside an Applewin emulator.
  * **`CALLRDTIME.TEXT`** -- A simple host program that links to either
    `IIGSCLK.TEXT` or `NOSLOTCLK.TEXT`, calls the ReadClock procedure and
    displays the current time and date.
  * **`GLOBALS.TEXT`** -- `const`, `type` and `var` declarations for the Pascal
-   system global variables. Originally based on the release code for UCSD Pascal
-   I.5. Updated to match changes for Apple Pascal 1.3.
+   system global variables. Originally based on the released code of UCSD Pascal
+   I.5. Updated to match changes for Apple Pascal 1.3. For example, the core
+   unit table is extended from 12 to 20 units.
  * **`STARTUP.TEXT`** -- A startup program that will link to either
    `IIGSCLK.TEXT` or `NOSLOTCLK.TEXT` and set the system date to the current
    date. Compiled as a system program to access the system global variables.
    This technique is explained in *Advanced UCSD Pascal Programming Techniques*
    by Willner and Demchack (Prentice-Hall, 1985). It's described in section
-   5.0.12.
+   5.0.12. The date is also written back to the system boot disk.
 
 ## Building
 
-Building applications is a manual sequence of steps. In principle Exec files
-would be able to automate some of this, but they would be opaque (figuring out
-what depends on what, and why, is hard) and unreliable (they are just blind
+Building applications is a manual sequence of steps. Exec files would be able to
+automate some of this, but they would be opaque (figuring out file and build
+dependencies from an Exec file is hard) and unreliable (they are just blind
 sequences of canned user input that make no allowances for failure). Here is a
 rough guide.
 
