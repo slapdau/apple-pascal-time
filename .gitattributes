@@ -1,0 +1,7 @@
+*.text              gitlab-language=pascal linguist-language=pascal
+sysstu.asm.text     gitlab-language=nasm linguist-language=nasm
+iigsclk.text        gitlab-language=nasm linguist-language=nasm
+noslotclk.text      gitlab-language=nasm linguist-language=nasm
+stdmacro.text       gitlab-language=nasm linguist-language=nasm
+userdriver.text     gitlab-language=nasm linguist-language=nasm
+clkunit.text        gitlab-language=nasm linguist-language=nasm
