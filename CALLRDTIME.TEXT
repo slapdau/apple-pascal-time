@@ -21,7 +21,10 @@ type
 var
     now:clockrec;
     field:string;
-    
+
+function InitClock:boolean;
+external;
+
 procedure ReadClock(var now:clockrec);
 external;
 
@@ -36,16 +39,23 @@ begin
 end;
 
 begin
-    ReadClock(now);
-    with now.time do begin
-        PadTimeField(hour,field);
-        write(field,':');
-        PadTimeField(minute,field);
-        write(field,':');
-        PadTimeField(second,field);
-        writeln(field);
-    end;
-    with now.date do
-        writeln(day:2,'/',month:2,'/',year:2)
+    if not InitClock then
+        begin
+            writeln('No clock.')
+        end
+    else
+        begin
+            ReadClock(now);
+            with now.time do begin
+                PadTimeField(hour,field);
+                write(field,':');
+                PadTimeField(minute,field);
+                write(field,':');
+                PadTimeField(second,field);
+                writeln(field);
+            end;
+            with now.date do
+                writeln(day:2,'/',month:2,'/',year:2)
+        end
 end.
 

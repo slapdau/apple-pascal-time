@@ -12,6 +12,13 @@
         pha
         .endm
 
+        .macro  RMVBIAS
+        pla
+        pla
+        pla
+        pla
+        .endm
+
 ; daterec = packed record
 ;     month: 0..12;
 ;     day  : 0..31;
@@ -29,26 +36,136 @@
 ;     time: timerec
 ; end {clockrec};
 
+; function InitClock:boolean;
+
 ; procedure ReadClock(var now:clockrec);
 ; external;
 
 STATEREG .equ   0C068
+ROMBNK2 .equ    0C08A
+LCBANK2 .equ    0C083
+LCBANK1 .equ    0C08B
+RDLCBNK .equ    0C011
+RDLCRAM .equ    0C012
 
 PTIME   .equ    0.
 RETURN  .equ    2.
+WKSPACE .equ    4.
+MEMSTS  .equ    10.
 
+        .func InitClock,0
+        .ref CLKVECT,RDVECT
+        
+        pop     RETURN
+        rmvbias
+        
+        jsr     TestClk
+        bcs     NoClk
+        
+        lda     CLKVECT
+        sta     RDVECT
+        lda     CLKVECT+1
+        sta     RDVECT+1
+        lda     #0
+        pha
+        lda     #1
+        pha
+        bcc     ExitInit
+
+NoClk   lda     #0
+        pha
+        lda     #0
+        pha
+
+ExitInit
+        push    RETURN
+        rts
+
+        ; Implement the test in Appendix B of the Apple IIgs Firmware
+        ; Reference Manual.
+        ; Note: This routine does not use the memory state register
+        ; at $C068. The whole point of this routine is that we don't
+        ; know yet if we're running in a IIgs.
+TestClk
+        ; Save memory status and set read from ROM.
+        rol     RDLCBNK
+        rol     MEMSTS
+        rol     RDLCRAM
+        rol     MEMSTS
+        lda     ROMBNK2
+        
+        ; Test the system ID bytes.
+        lda     0FBB3
+        cmp     #006
+        bne     ClkBad
+        lda     0FBC0
+        cmp     #0E0
+        bne     ClkBad
+        lda     0FBBF
+        cmp     #00
+        bne     ClkBad
+        
+        ; Call the IIgs ID routine.
+        ; An enhanced //e will leave the carry set.
+        ; A IIgs will clear the carry and leave hardware status in the
+        ; accumulator.
+        sec
+        jsr     0FE1F
+        bcs     ClkBad
+        and     #010            ; Test the built-in clock bit.
+        bne     ClkGood
+        
+ClkBad  sec
+ClkGood php
+
+        ; Restore memory status. This is probably overkill. Should be safe
+        ; to just assume R/W Language Card Bank 1.
+        ror     MEMSTS
+        bcc     $9
+        ror     MEMSTS
+        bcc     $1
+        lda     LCBANK2
+        lda     LCBANK2
+        bcs     $9
+$1      lda     LCBANK1
+        lda     LCBANK1
+$9      plp
+        rts
+        
         .proc   ReadClock,1
         
         pop     RETURN
         pop     PTIME
         
-        jsr RDTIME
+        jsr RdIfClk
         
-        push RETURN
+        ldy     #5
+$1      lda     WKSPACE,y
+        sta     @PTIME,y
+        dey
+        bpl     $1
+
+        push    RETURN
+        rts
+
+RdIfClk
+        .def CLKVECT,RDVECT
+        jmp     @RDVECT
+RDVECT  .word   ClrWkSpc
+CLKVECT .word   RdPasTime
+
+ClrWkSpc
+        ; Zero out workspace for return.
+        lda     #0
+        ldy     #5
+$1      sta     WKSPACE,y
+        dey
+        bpl     $1
+        
         rts
         
-RDTIME
-        jsr     RD_TIME_HEX
+RdPasTime
+        jsr     RdHexTime
         
         ; Seconds
         pla
@@ -103,17 +220,9 @@ $2      sta     WKSPACE+1
         pla
         pla
         
-        ldy     #5
-$3      lda     WKSPACE,y
-        sta     @PTIME,y
-        dey
-        bpl     $3
-
         rts
         
-WKSPACE .block  6
-        
-RD_TIME_HEX
+RdHexTime
         pop     $1
         
         lda     STATEREG

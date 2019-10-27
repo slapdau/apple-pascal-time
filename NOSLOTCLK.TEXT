@@ -12,6 +12,13 @@
         pha
         .endm
 
+        .macro  RMVBIAS
+        pla
+        pla
+        pla
+        pla
+        .endm
+
 ; daterec = packed record
 ;     month: 0..12;
 ;     day  : 0..31;
@@ -29,25 +36,21 @@
 ;     time: timerec
 ; end {clockrec};
 
+; function InitClock:boolean;
+; external;
+
 ; procedure ReadClock(var now:clockrec);
 ; external;
 
 RDCXROM .equ    0C015
 CLCXROM .equ    0C007
 STCXROM .equ    0C006
+C8OFF   .equ    0CFFF
 
-CLKWR0  .equ    0C300
-CLKWR1  .equ    0C301
+CLKWR   .equ    0C300
 CLKRD   .equ    0C304
 
-RETURN  .equ    0.
-PTIME   .equ    2.
-TEMP    .equ    4.
-
-WKSPACE .equ    6.
-
 TIME    .equ    28.
-
 SECS    .equ    TIME+6
 MINS    .equ    TIME+5
 HOURS   .equ    TIME+4
@@ -55,25 +58,160 @@ DAY     .equ    TIME+2
 MNTH    .equ    TIME+1
 YEAR    .equ    TIME+0
 
-        .proc   READCLOCK,1
+
+        .func InitClock,0
+        .ref CLKVECT,RDVECT
+        
+RETURN  .equ    0.
+COUNT   .equ    2.
+CLKTRY  .equ    3.
+        
+        pop     RETURN
+        rmvbias
+        
+        jsr     TestClk
+        bcs     NoClk
+        
+        lda     CLKVECT
+        sta     RDVECT
+        lda     CLKVECT+1
+        sta     RDVECT+1
+        lda     #0
+        pha
+        lda     #1
+        pha
+        bcc     ExitInit
+
+NoClk   lda     #0
+        pha
+        lda     #0
+        pha
+
+ExitInit
+        push    RETURN
+        rts
+
+TestClk
+        .ref    CDRdSw, CDStSw, CDRsSw
+        .ref    CDRstA2, CDUnlck
+        .ref    CDRdClk
+        .ref    RdHexTime
+        
+        ; We are going to try slot ROMs first.
+        lda     #0CF
+        ldy     #0FF
+        sta     CDRdSw
+        sty     CDRdSw-1
+        sta     CDRsSw
+        sty     CDRsSw-1
+        ldy     #000
+        sty     CDStSw-1
+        
+        ; Initialise counter
+        lda     #007
+        sta     COUNT
+        jmp     ClkNxt
+
+        ; Check slot 3 in system default state first.
+        lda     #003
+CkSlot  ora     #0C0
+        sta     CDStSw
+CkOthr  sta     CDUnlck
+        sta     CDRstA2
+        sta     CDRdClk
+        lda     #003
+        sta     CLKTRY
+GetDT   jsr     RdHexTime
+        ; Check that the returned values are sane.
+        lda     MNTH
+        beq     ClkNxt
+        cmp     #13.
+        bcs     ClkNxt
+        lda     DAY
+        beq     ClkNxt
+        cmp     #32.
+        bcs     ClkNxt
+        lda     HOURS
+        cmp     #24.
+        bcs     ClkNxt
+        lda     MINS
+        cmp     #60.
+        bcs     ClkNxt
+        dec     ClkTry
+        bne     GetDT
+        jmp     ClkGood
+ClkNxt  inc     COUNT
+        lda     COUNT
+        cmp     #008
+        bcc     CkSlot
+        bne     ClkBad
+        ; Fall through when COUNT == 8
+        
+        ; Try internal $C100-$CFFF ROM
+        ; Modify driver to save CX ROM status, enable it, and restore it.
+        lda     #0C0
+        ldy     #015
+        sta     CDRdSw
+        sty     CDRdSw-1
+        ldy     #007
+        sta     CDStSw
+        sty     CDStSw-1
+        dey
+        sta     CDRsSw
+        sty     CDRsSw-1
+        lda     #0C8
+        bne     CkOthr
+
+ClkBad  sec
+        rts
+        
+ClkGood clc
+        rts
+
+        .proc   ReadClock,1
+        .def    RdHexTime
+        
+RETURN  .equ    0.
+PTIME   .equ    2.
+
+WKSPACE .equ    6.
+
         pop     RETURN
         pop     PTIME
         
-        jsr     RD_TIME_HEX
+        jsr     RdIfClk
         
-        ldy     #007
-$1      lda     TIME,y
-        jsr     BCD2BIN
-        sta     TIME,y
+        ldy     #5
+$1      lda     WKSPACE,y
+        sta     @PTIME,y
+        dey
+        bpl     $1
+
+        push    RETURN
+        rts
+
+RdIfClk
+        ; Make a call to read the time in Pascal format if there is
+        ; a clock. Otherwise just clear the return to zeros. Set by
+        ; a call to InitClock.
+        .def CLKVECT,RDVECT
+        jmp     @RDVECT
+RDVECT  .word   ClrWkSpc
+CLKVECT .word   RdPasTime
+
+ClrWkSpc
+        ; Zero out workspace for return.
+        lda     #0
+        ldy     #5
+$1      sta     WKSPACE,y
         dey
         bpl     $1
         
-        ; Zero out the return value
-        ldy     #005
-        lda     #000
-$2      sta     WKSPACE,y
-        dey
-        bpl     $2
+        rts
+        
+RdPasTime
+        jsr     RdHexTime
+        jsr     ClrWkSpc
         
         ; Seconds
         lda     SECS
@@ -113,78 +251,87 @@ $2      sta     WKSPACE,y
         ora     WKSPACE
         sta     WKSPACE
         
-        ; Copy the return value to the caller
-        ldy     #005
-$3      lda     WKSPACE,y
-        sta     @PTIME,y
-        dey
-        bpl     $3
-        
-        push RETURN
         rts
         
-RD_TIME_HEX
-        bit     RDCXROM
-        php                     ; Save interrupt and internal ROM state
+RdHexTime
+        .def    CDRdSw, CDStSw, CDRsSw
+        php                     ; Save interrupt state
         sei
+        lda     RDCXROM
+CDRdSw  .equ    *-1
+        pha                     ; Save ROM state
         sta     CLCXROM         ; Use internal ROM for the Cx pages
+CDStSw  .equ    *-1
         
         jsr     UNLK_CLK
         jsr     RD_CLK
 
-        plp
+        pla
         bpl     $1
         sta     STCXROM         ; Restore card ROM for the Cx pages
-$1      rts
+$1      plp
+CDRsSw  .equ    *-2
+        jsr     BCD2BIN
+        rts
 
 UNLK_CLK
+        .def    CDRstA2, CDUnlck
         lda     CLKRD
+CDRstA2 .equ    *-1
         ldx     #007
-$1      ldy     #007
-        lda     unlkseq,x
-        sta     TEMP
-$2      ror     TEMP
-        bcc     $3
-        lda     CLKWR1
-        bcs     $4
-$3      lda     CLKWR0
-$4      dey
-        bpl     $2
+ulkbyt  lda     unlkseq,x
+        sec
+        ror     a
+ulkbit  pha
+        lda     #000
+        rol     a
+        tay
+        lda     CLKWR,Y
+CDUnlck .equ    *-1
+        pla
+        lsr     a
+        bne     ulkbit
         dex
-        bpl     $1
+        bpl     ulkbyt
         rts
 
 unlkseq .byte   05C,0A3,03A,0C5,05C,0A3,03A,0C5
 
 RD_CLK
+        .def    CDRdClk
         ldx     #007
-$1      ldy     #007
-$2      lda     CLKRD
+rdbyt   lda     #000
+        sta     TIME,X
+        ldy     #007
+rdbit   lda     CLKRD
+CDRdClk .equ    *-1
         ror     A
-        ror     TEMP
+        ror     TIME,X
         dey
-        bpl     $2
-        lda     TEMP
-        sta     TIME,x
+        bpl     rdbit
         dex
-        bpl     $1
+        bpl     rdbyt
         rts
         
 BCD2BIN
-        clc
+        ldx     #007
+$1      lda     TIME,X
         pha
         and     #00F
-        sta     TEMP
+        sta     TIME,X
         pla
         and     #0F0
         lsr     a
         pha
         lsr     a
         lsr     a
-        adc     TEMP
-        sta     TEMP
+        adc     TIME,X
+        sta     TIME,X
         pla
-        adc     TEMP
+        adc     TIME,X
+        sta     TIME,X
+        dex
+        bpl     $1
         rts
         
                 ; 21:24:45, 12-Jan-18

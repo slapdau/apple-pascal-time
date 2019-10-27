@@ -63,7 +63,7 @@ took a long time to get right. Then I discovered a book that explained how to
 use the `$U-` compiler option. Doing things this way only took an hour or so to
 implement.
 
-## Catalogue
+## Source Catalogue
 
  * **`STDMACRO.TEXT`** -- A collection of useful assembly language macros from
    appendix 3D of the Apple Pascal 1.3 manual.
@@ -189,3 +189,48 @@ procedure. Depends on `GLOBALS.TEXT`.
   1. Compile `STARTUP.TEXT`.
   2. Link with either `IIGSCLK.CODE` or `NOSLOTCLK.CODE`.
   3. Copy to the system disk as `SYSTEM.STARTUP`.
+
+## Usage
+
+This only describes the current model of clock driver, implemented in
+`IIGSCLK.TEXT` and `NOSLOTCLK.TEXT`, and called by `CALLRDTIME.TEXT` and
+`STARTUP.TEXT`. The interface into both drivers is summarised by the following
+declarations.
+
+```pascal
+type
+    daterec = packed record
+        month: 0..12;
+        day  : 0..31;
+        year : 0..100
+    end {daterec};
+    timerec = packed record
+        hour   : 0..23;
+        minute : 0..59;
+        filler1: 0..31;
+        second : 0..59;
+        filler2: 0..2047;
+    end {timerec};
+    clockrec = record
+        date: daterec;
+        time: timerec
+    end {clockrec};
+
+function InitClock:boolean;
+external;
+
+procedure ReadClock(var now:clockrec);
+external;
+```
+`InitClock` must be called and return `true` before `ReadClock` will return
+values. `InitClock` can be safely called multiple times. `ReadClock` can be
+safely called if `InitClock` has not been called or has returned `false`, but
+will return a zeroed out clock record.
+
+## Build Catalogue
+
+ * **`START.IIGS.CODE`** -- `STARTUP.TEXT` compiled and linked with `IIGSCLK.CODE`.
+   Ready to be transferred as `SYSTEM.STARTUP to a IIgs startup disk.
+ * **`START.NSC.CODE`** -- `STARTUP.TEXT` compiled and linked with `NOSLOTCLK.CODE`.
+   Ready to be transferred as `SYSTEM.STARTUP to a startup disk for a system
+   with a NoSlotClock installed. Works on AppleWin.
