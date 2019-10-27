@@ -136,23 +136,29 @@ program Kernel;
             writeln;
             writeln('Copyright U.C. Regents 1979');
          end;
+         
+         procedure UpdtBoot;
+         
+         begin
+             bootunit := syscom^.sysunit;
+             unitread(bootunit, dirinfo, sizeof(directory), DIRBLK);
+             
+             if ioresult <> 0 then
+                 exit(UpdtBoot);
+             
+             if dirinfo[0].dvid <> syvid then
+                 exit(UpdtBoot);
+             
+             dirinfo[0].dlastboot := now.date;
+             unitwrite(bootunit, dirinfo, sizeof(directory), DIRBLK);
+         end;
      
      begin
          hasClock := InitClock;
          if hasClock then begin
              ReadClock(now);
              thedate := now.date;
-             bootunit := syscom^.sysunit;
-             unitread(bootunit, dirinfo, sizeof(directory), DIRBLK);
-             
-             if ioresult <> 0 then
-                 exit(StartTime);
-             
-             if dirinfo[0].dvid <> syvid then
-                 exit(StartTime);
-             
-             dirinfo[0].dlastboot := now.date;
-             unitwrite(bootunit, dirinfo, sizeof(directory), DIRBLK);
+             UpdtBoot;
          end;
          
          greetings;
