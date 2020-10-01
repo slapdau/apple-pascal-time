@@ -108,9 +108,8 @@ TestClk
         sty     CDStSw-1
         
         ; Initialise counter
-        lda     #007
+        lda     #000
         sta     COUNT
-        jmp     ClkNxt
 
         ; Check slot 3 in system default state first.
         lda     #003
