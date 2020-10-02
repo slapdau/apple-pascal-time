@@ -230,7 +230,7 @@ will return a zeroed out clock record.
 ## Build Catalogue
 
  * **`START.IIGS.CODE`** -- `STARTUP.TEXT` compiled and linked with `IIGSCLK.CODE`.
-   Ready to be transferred as `SYSTEM.STARTUP to a IIgs startup disk.
+   Ready to be transferred as `SYSTEM.STARTUP` to a IIgs startup disk.
  * **`START.NSC.CODE`** -- `STARTUP.TEXT` compiled and linked with `NOSLOTCLK.CODE`.
-   Ready to be transferred as `SYSTEM.STARTUP to a startup disk for a system
+   Ready to be transferred as `SYSTEM.STARTUP` to a startup disk for a system
    with a NoSlotClock installed. Works on AppleWin.
