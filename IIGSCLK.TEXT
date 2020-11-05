@@ -32,29 +32,112 @@
         pla
         pla
         .endm
+        
+        .macro  MOVE
+        lda     %1
+        sta     %2
+        lda     %1+1
+        sta     %2+1
+        .endm
 
-; daterec = packed record
-;     month: 0..12;
-;     day  : 0..31;
-;     year : 0..100
-; end {daterec};
-; timerec = packed record
-;     hour   : 0..23;
-;     minute : 0..59;
-;     filler1: 0..31;
-;     second : 0..59;
-;     filler2: 0..2047
-; end {timerec};
-; clockrec = record
-;     date: daterec;
-;     time: timerec
-; end {clockrec};
+        .func InitClock,0
+        .ref RdVec
+        .ref namePtr
+        .ref TestGs
 
-; function InitClock:boolean;
+RETURN  .equ    0.
+        
+        jsr     TestGs
+        bcc     exit
+        
+; Store vectors
+        pop     namePtr
+        pop     RdVec
+        
+exit    pop     RETURN
+        rmvbias
+        lda     #0
+        pha
+        rol     a
+        pha
+        push    RETURN
+        rts
+        
+        .proc   ReadClock,1
 
-; procedure ReadClock(var now:clockrec);
-; external;
+; Layout of the record pointed to by PTIME.
+; |---1--| |---0--|
+; yyyyyyyd ddddMMMM
+; |---3--| |---2--|
+; 00000mmm mmmhhhhh
+; |---5--| |---4--|
+; 00000000 00ssssss
+; 21:24:45, 12-Jan-18 stored as:
+; words 024c1, 00315, 0002d
+; bytes 0c1, 024, 015, 003, 02d, 000
 
+RETURN  .equ    0.
+PTIME   .equ    2.
+        
+        pop     RETURN
+        pop     PTIME
+        push    RETURN
+        push    PTIME
+        
+        jsr     CallRdVec
+        
+        rts
+
+CallRdVec
+        .def    RdVec
+        jmp     @RdVec
+RdVec  .word   ClrWkSpc
+
+ClrWkSpc
+        ; Zero out workspace for return.
+        pop     PTIME
+        lda     #0
+        ldy     #5
+$1      sta     @PTIME,y
+        dey
+        bpl     $1
+        
+        rts
+        
+
+        .proc   ClockName,1
+        .def namePtr
+        
+RETURN  .equ    0.
+FROM    .equ    2
+TO      .equ    4
+
+        pop     RETURN
+        pop     TO
+        push    RETURN
+        
+        move    namePtr,FROM
+        ldy     #0
+$1      lda     @FROM,y
+        beq     $2
+        iny
+        beq     $2
+        sta     @TO,y
+        bne     $1
+$2      tya
+        ldy     #0
+        sta     @TO,y
+        
+        rts
+
+namePtr .word   NoClk
+
+NoClk   .ascii  "<No Clock>"
+        .byte   0
+
+        .proc IIgs,0
+        rts
+        
 STATEREG .equ   0C068
 ROMBNK2 .equ    0C08A
 LCBANK2 .equ    0C083
@@ -62,45 +145,16 @@ LCBANK1 .equ    0C08B
 RDLCBNK .equ    0C011
 RDLCRAM .equ    0C012
 
-PTIME   .equ    0.
-RETURN  .equ    2.
-WKSPACE .equ    4.
-MEMSTS  .equ    10.
-
-        .func InitClock,0
-        .ref CLKVECT,RDVECT
-        
-        pop     RETURN
-        rmvbias
-        
-        jsr     TestClk
-        bcs     NoClk
-        
-        lda     CLKVECT
-        sta     RDVECT
-        lda     CLKVECT+1
-        sta     RDVECT+1
-        lda     #0
-        pha
-        lda     #1
-        pha
-        bcc     ExitInit
-
-NoClk   lda     #0
-        pha
-        lda     #0
-        pha
-
-ExitInit
-        push    RETURN
-        rts
+RETURN  .equ    0.
+MEMSTS  .equ    2.
 
         ; Implement the test in Appendix B of the Apple IIgs Firmware
         ; Reference Manual.
         ; Note: This routine does not use the memory state register
         ; at $C068. The whole point of this routine is that we don't
         ; know yet if we're running in a IIgs.
-TestClk
+        .def    TestGs
+TestGs
         ; Save memory status and set read from ROM.
         rol     RDLCBNK
         rol     MEMSTS
@@ -126,83 +180,72 @@ TestClk
         sec
         jsr     0FE1F
         bcs     ClkBad
-        and     #010            ; Test the built-in clock bit.
+        and     #010    ; Test the built-in clock bit.
+        sec
         bne     ClkGood
         
-ClkBad  sec
+ClkBad  clc
 ClkGood php
 
         ; Restore memory status. This is probably overkill. Should be safe
         ; to just assume R/W Language Card Bank 1.
         ror     MEMSTS
-        bcc     $9
+        bcc     $2
         ror     MEMSTS
         bcc     $1
         lda     LCBANK2
         lda     LCBANK2
-        bcs     $9
+        bcs     $2
 $1      lda     LCBANK1
         lda     LCBANK1
-$9      plp
-        rts
         
-        .proc   ReadClock,1
+$2      plp
+        bcc     $9
+        pop     RETURN
+        push    RdVec
+        push    NmPtr
+        push    RETURN
+
+$9      rts
         
+PTIME   .equ    2.
+TEMP    .equ    4.
+
+RdVec   .word   RdTime
+RdTime
         pop     RETURN
         pop     PTIME
-        
-        jsr RdIfClk
-        
-        ldy     #5
-$1      lda     WKSPACE,y
-        sta     @PTIME,y
-        dey
-        bpl     $1
-
         push    RETURN
-        rts
-
-RdIfClk
-        .def CLKVECT,RDVECT
-        jmp     @RDVECT
-RDVECT  .word   ClrWkSpc
-CLKVECT .word   RdPasTime
-
-ClrWkSpc
-        ; Zero out workspace for return.
-        lda     #0
-        ldy     #5
-$1      sta     WKSPACE,y
-        dey
-        bpl     $1
         
-        rts
-        
-RdPasTime
-        jsr     RdHexTime
+        jsr     CallToolBox
         
         ; Seconds
-        pla
-        sta     WKSPACE+4
         lda     #0
-        sta     WKSPACE+5
-        sta     WKSPACE+2
+        ldy     #5
+        sta     @PTIME,y
+        pla
+        dey
+        sta     @PTIME,y
         
         ; Minutes
+        lda     #0
+        sta     TEMP
         clc
         pla
         ror     A
-        ror     WKSPACE+2
+        ror     TEMP
         ror     A
-        ror     WKSPACE+2
+        ror     TEMP
         ror     A
-        ror     WKSPACE+2
-        sta     WKSPACE+3
+        ror     TEMP
+        dey
+        sta     @PTIME,y
         
         ; Hour
         pla
-        ora     WKSPACE+2
-        sta     WKSPACE+2
+        ora     TEMP
+        dey
+        sta     @PTIME,y
         
         ; Year
         pla
@@ -210,7 +253,7 @@ $1      cmp     #100.
         bcc     $2
         sbc     #100.
         bcs     $1
-$2      sta     WKSPACE+1
+$2      sta     TEMP
         
         ; Day
         pla
@@ -219,16 +262,20 @@ $2      sta     WKSPACE+1
         asl     A
         asl     A
         asl     A
-        rol     A
-        rol     WKSPACE+1
-        sta     WKSPACE
+        asl     A
+        rol     TEMP
+        sta     TEMP+1
+        lda     TEMP
+        dey
+        sta     @PTIME,y
         
         ; Month
         pla
         clc
         adc     #1
-        ora     WKSPACE
-        sta     WKSPACE
+        ora     TEMP+1
+        dey
+        sta     @PTIME,y
         
         ; Clear null byte and day of week from stack.
         pla
@@ -236,18 +283,21 @@ $2      sta     WKSPACE+1
         
         rts
         
-RdHexTime
-        pop     $1
+CallToolBox
+INTSAV          .equ    4.
+STATESAV        .equ    5.
+
+        pop     RETURN
         
         lda     STATEREG
-        sta     $3
+        sta     STATESAV
         and     #0CF
         sta     STATEREG
         
         php
         sei             ; Disable interupts. Doubt Pascal interrupt
         pla             ; handlers could cope.
-        sta     $2
+        sta     INTSAV
         
         ; The following code blob is position independant 65816 code
         ; that calls ReadTimeHex in the IIgs Miscelaneous Tool Set.
@@ -278,22 +328,19 @@ RdHexTime
         ; | second       | 0-59
         ; |--------------| <-- SP
         
-        lda     $2
+        lda     INTSAV
         pha
         plp
         
-        lda     $3
+        lda     STATESAV
         sta     STATEREG
         
-        push    $1
+        push    RETURN
         rts
 
-$1      .word   0
-$2      .byte   0
-$3      .byte   0
+Name    .ascii  "IIgs built-in clock"
+        .byte   0
+NmPtr   .word   Name
 
-                ; 21:24:45, 12-Jan-18
-; TIMEVAL .word   024c1, 00315, 0002d
-        
         .end
 

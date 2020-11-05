@@ -33,29 +33,13 @@
         pla
         .endm
 
-; daterec = packed record
-;     month: 0..12;
-;     day  : 0..31;
-;     year : 0..100
-; end {daterec};
-; timerec = packed record
-;     hour   : 0..23;
-;     minute : 0..59;
-;     filler1: 0..31;
-;     second : 0..59;
-;     filler2: 0..2047
-; end {timerec};
-; clockrec = record
-;     date: daterec;
-;     time: timerec
-; end {clockrec};
-
-; function InitClock:boolean;
-; external;
-
-; procedure ReadClock(var now:clockrec);
-; external;
-
+        .macro  MOVE
+        lda     %1
+        sta     %2
+        lda     %1+1
+        sta     %2+1
+        .endm
+        
 RDCXROM .equ    0C015
 CLCXROM .equ    0C007
 STCXROM .equ    0C006
@@ -64,53 +48,116 @@ C8OFF   .equ    0CFFF
 CLKWR   .equ    0C300
 CLKRD   .equ    0C304
 
-TIME    .equ    28.
-SECS    .equ    TIME+6
-MINS    .equ    TIME+5
-HOURS   .equ    TIME+4
-DAY     .equ    TIME+2
-MNTH    .equ    TIME+1
-YEAR    .equ    TIME+0
-
-
         .func InitClock,0
-        .ref CLKVECT,RDVECT
+        .ref    RdVect
+        .ref    namePtr
+        .ref    TestNSC
         
 RETURN  .equ    0.
-COUNT   .equ    2.
-CLKTRY  .equ    3.
         
-        pop     RETURN
-        rmvbias
-        
-        jsr     TestClk
-        bcs     NoClk
-        
-        lda     CLKVECT
-        sta     RDVECT
-        lda     CLKVECT+1
-        sta     RDVECT+1
-        lda     #0
-        pha
-        lda     #1
-        pha
+        jsr     TestNSC
         bcc     ExitInit
-
-NoClk   lda     #0
-        pha
-        lda     #0
-        pha
+        
+        pop     namePtr
+        pop     RdVect
 
 ExitInit
+        pop     RETURN
+        rmvbias
+        lda     #0
+        pha
+        rol     a
+        pha
         push    RETURN
         rts
 
-TestClk
-        .ref    CDRdSw, CDStSw, CDRsSw
-        .ref    CDRstA2, CDUnlck
-        .ref    CDRdClk
-        .ref    RdHexTime
+
+        .proc   ReadClock,1
+
+; Layout of the record pointed to by PTIME.
+; |---1--| |---0--|
+; yyyyyyyd ddddMMMM
+; |---3--| |---2--|
+; 00000mmm mmmhhhhh
+; |---5--| |---4--|
+; 00000000 00ssssss
+; 21:24:45, 12-Jan-18 stored as:
+; words 024c1, 00315, 0002d
+; bytes 0c1, 024, 015, 003, 02d, 000
+
+RETURN  .equ    0.
+PTIME   .equ    2.
+
+        pop     RETURN
+        pop     PTIME
+        push    RETURN
+        push    PTIME
         
+        jsr     CallRdVec
+        
+        rts
+
+CallRdVec
+        ; Make a call to read the time in Pascal format if there is
+        ; a clock. Otherwise just clear the return to zeros. Set by
+        ; a call to InitClock.
+        .def    RdVect
+        jmp     @RdVect
+
+RdVect  .word   ClrWkSpc
+ClrWkSpc
+        ; Zero out workspace for return.
+        pop     PTIME
+        lda     #0
+        ldy     #5
+$1      sta     @PTIME,y
+        dey
+        bpl     $1
+        
+        rts
+        
+
+        .proc   ClockName,1
+        .def    namePtr
+
+RETURN  .equ    0.
+FROM    .equ    2.
+TO      .equ    4.
+
+        pop     RETURN
+        pop     TO
+        push    RETURN
+
+        move    namePtr,FROM
+        ldy     #0
+$1      lda     @FROM,y
+        beq     $2
+        iny
+        beq     $2
+        sta     @TO,y
+        bne     $1
+$2      tya
+        ldy     #0
+        sta     @TO,y
+
+        rts
+
+namePtr .word   NoClk
+
+NoClk   .ascii  "<No Clock>"
+        .byte   0
+
+        .proc   nsc,0
+        rts
+
+RETURN  .equ    0.
+COUNT   .equ    2.
+CLKTRY  .equ    3.
+TEMP    .equ    4.
+SMARK   .equ    5.
+
+        .def    TestNSC
+TestNSC
         ; We are going to try slot ROMs first.
         lda     #0CF
         ldy     #0FF
@@ -134,26 +181,34 @@ CkOthr  sta     CDUnlck
         sta     CDRdClk
         lda     #003
         sta     CLKTRY
-GetDT   jsr     RdHexTime
         ; Check that the returned values are sane.
-        lda     MNTH
+GetDT   tsx
+        stx     SMARK
+        jsr     RdHexTime
+        pla
+        pla                     ; Month
         beq     ClkNxt
         cmp     #13.
         bcs     ClkNxt
-        lda     DAY
+        pla                     ; Day
         beq     ClkNxt
         cmp     #32.
         bcs     ClkNxt
-        lda     HOURS
+        pla
+        pla                     ; Hours
         cmp     #24.
         bcs     ClkNxt
-        lda     MINS
+        pla                     ; Minutes
         cmp     #60.
         bcs     ClkNxt
+        pla
+        pla
         dec     ClkTry
         bne     GetDT
         jmp     ClkGood
-ClkNxt  inc     COUNT
+ClkNxt  ldx     SMARK
+        txs
+        inc     COUNT
         lda     COUNT
         cmp     #008
         bcc     CkSlot
@@ -175,120 +230,115 @@ ClkNxt  inc     COUNT
         lda     #0C8
         bne     CkOthr
 
-ClkBad  sec
+ClkBad  clc
         rts
         
-ClkGood clc
+ClkGood jsr     SetName
+        pop     RETURN
+        push    RdVec
+        push    NmPtr
+        push    RETURN
+        sec
         rts
 
-        .proc   ReadClock,1
-        .def    RdHexTime
-        
-RETURN  .equ    0.
 PTIME   .equ    2.
 
-WKSPACE .equ    6.
-
+RdVec   .word   RdTime
+RdTime
         pop     RETURN
         pop     PTIME
-        
-        jsr     RdIfClk
-        
-        ldy     #5
-$1      lda     WKSPACE,y
-        sta     @PTIME,y
-        dey
-        bpl     $1
-
         push    RETURN
-        rts
-
-RdIfClk
-        ; Make a call to read the time in Pascal format if there is
-        ; a clock. Otherwise just clear the return to zeros. Set by
-        ; a call to InitClock.
-        .def CLKVECT,RDVECT
-        jmp     @RDVECT
-RDVECT  .word   ClrWkSpc
-CLKVECT .word   RdPasTime
-
-ClrWkSpc
-        ; Zero out workspace for return.
-        lda     #0
-        ldy     #5
-$1      sta     WKSPACE,y
-        dey
-        bpl     $1
         
-        rts
-        
-RdPasTime
         jsr     RdHexTime
-        jsr     ClrWkSpc
         
-        ; Seconds
-        lda     SECS
-        sta     WKSPACE+4
         
-        ; Minutes
-        clc
-        lda     MINS
-        ror     a
-        ror     WKSPACE+2
-        ror     a
-        ror     WKSPACE+2
-        ror     a
-        ror     WKSPACE+2
-        sta     WKSPACE+3
+        pla                     ; Year
+        sta     TEMP
         
-        ; Hour
-        lda     HOURS
-        ora     WKSPACE+2
-        sta     WKSPACE+2
+        pla                     ; Month
+        sta     TEMP+1
         
-        ; Year
-        lda     YEAR
-        sta     WKSPACE+1
-        
-        ; Day
-        lda     DAY
+        pla                     ; Day
         asl     a
         asl     a
         asl     a
         asl     a
-        rol     WKSPACE+1
-        sta     WKSPACE
+        rol     TEMP
+        ora     TEMP+1
+        ldy     #0
+        sta     @PTIME,y
+        lda     TEMP
+        iny
+        sta     @PTIME,y
         
-        ; Month
-        lda     MNTH
-        ora     WKSPACE
-        sta     WKSPACE
+        pla
+        pla                     ; Hour
+        sta     TEMP
+        
+        lda     #0
+        sta     TEMP+1
+        pla                     ; Minute
+        asl     a
+        asl     a
+        rol     a
+        rol     TEMP+1
+        rol     a
+        rol     TEMP+1
+        rol     a
+        rol     TEMP+1
+        ora     TEMP
+        iny
+        sta     @PTIME,y
+        lda     TEMP+1
+        iny
+        sta     @PTIME,y
+        
+        pla                     ; Second
+        iny
+        sta     @PTIME,y
+        
+        pla
+        lda     #0
+        iny
+        sta     @PTIME,y
         
         rts
-        
+
 RdHexTime
-        .def    CDRdSw, CDStSw, CDRsSw
+INTSAVE .equ    6.
+CXSAVE  .equ    7.
+
+        pop     RETURN
         php                     ; Save interrupt state
         sei
+        pla
+        sta     INTSAVE
         lda     RDCXROM
 CDRdSw  .equ    *-1
-        pha                     ; Save ROM state
+        sta     CXSAVE          ; Save ROM state
         sta     CLCXROM         ; Use internal ROM for the Cx pages
 CDStSw  .equ    *-1
         
         jsr     UNLK_CLK
-        jsr     RD_CLK
+        ldx     #007
+$2      jsr     RD_BYTE
+        jsr     BCD2BIN
+        pha
+        dex
+        bpl     $2
 
-        pla
+        lda     CXSAVE
         bpl     $1
         sta     STCXROM         ; Restore card ROM for the Cx pages
-$1      plp
-CDRsSw  .equ    *-2
-        jsr     BCD2BIN
+$1
+CDRsSw  .equ    *-1
+        lda     INTSAVE
+        pha
+        plp
+        push    RETURN
         rts
 
 UNLK_CLK
-        .def    CDRstA2, CDUnlck
         lda     CLKRD
 CDRstA2 .equ    *-1
         ldx     #007
@@ -310,43 +360,73 @@ CDUnlck .equ    *-1
 
 unlkseq .byte   05C,0A3,03A,0C5,05C,0A3,03A,0C5
 
-RD_CLK
-        .def    CDRdClk
-        ldx     #007
-rdbyt   lda     #000
-        sta     TIME,X
+RD_BYTE
+        lda     #000
         ldy     #007
-rdbit   lda     CLKRD
+rdBit   pha
+        lda     CLKRD
 CDRdClk .equ    *-1
         ror     A
-        ror     TIME,X
+        pla
+        ror     A
         dey
-        bpl     rdbit
-        dex
-        bpl     rdbyt
+        bpl     rdBit
         rts
         
 BCD2BIN
-        ldx     #007
-$1      lda     TIME,X
         pha
         and     #00F
-        sta     TIME,X
+        sta     TEMP
         pla
         and     #0F0
         lsr     a
         pha
         lsr     a
         lsr     a
-        adc     TIME,X
-        sta     TIME,X
+        adc     TEMP
+        sta     TEMP
         pla
-        adc     TIME,X
-        sta     TIME,X
-        dex
-        bpl     $1
+        adc     TEMP
         rts
-        
+
                 ; 21:24:45, 12-Jan-18
 ; TIMEVAL .word   024c1, 00315, 0002d
+
+Name    .ascii  "No-Slot Clock "
+NmSfx
+        .block  66.
+NmPtr   .word   Name
+NmCrd   .ascii  "(slot "
+SltNum  .ascii  "X)"
+        .byte   0
+NmCrdP  .word   NmCrd
+NmDef   .ascii  "(default)"
+        .byte   0
+NmDefP  .word   NmDef
+NmInt   .ascii  "(internal)"
+        .byte   0
+NmIntP  .word   NmInt
+        
+SetName
+        lda     COUNT
+        cmp     #0
+        bne     $12
+        move    NmDefP,TEMP
+        jmp     $0
+$12     cmp     #8
+        bne     $13
+        move    NmIntP,TEMP
+        jmp     $0
+$13     clc
+        adc     #030
+        sta     SltNum
+        move    NmCrdP,TEMP
+$0      ldy     #0
+$1      lda     @TEMP,y
+        sta     NmSfx,y
+        beq     $9
+        iny
+        bne     $1
+$9      rts
+
         .end

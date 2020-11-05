@@ -23,32 +23,37 @@ program Kernel;
     
     type
         byte = 0..255;
+        (* Types and routine declarations are copied inline, instead of
+        using the Clock unit. Values returned from the clock unit are
+        corrupted. Possibly due to this being a system program. *)
+        daterec = packed record
+            month: 0..12;
+            day  : 0..31;
+            year : 0..100
+        end {daterec};
+        timerec = packed record
+            hour   : 0..23;
+            minute : 0..59;
+            second : 0..59
+        end; {timerec}
+        clockrec = record
+            date: daterec;
+            time: timerec;
+        end {clockrec};
     
-        clockinfo = record
-            date: packed record
-                month: 0..12;
-                day  : 0..31;
-                year : 0..100
-            end {daterec};
-            time: packed record
-                hour   : 0..23;
-                minute : 0..59;
-                filler1: 0..31;
-                second : 0..59;
-                filler2: 0..2047;
-            end {timerec}
-        end {clockinfo};
-
     var
         hasClock:boolean;
-        now:clockinfo;
+        now:clockrec;
         dirinfo:directory;
         bootunit:unitnum;
-    
+        
         function InitClock:boolean;
         external;
         
-        procedure ReadClock(var now:clockinfo);
+        procedure ReadClock(var now:clockrec);
+        external;
+        
+        procedure ClockName(var name:string);
         external;
         
         function peek(address:integer):byte;
@@ -67,6 +72,30 @@ program Kernel;
             peek := mem.val^[0];
         end;
         
+        procedure WriteDate(date:daterec);
+        
+        begin
+            with date do begin
+                write(day,'-');
+                case month of
+                    1 : write('Jan');
+                    2 : write('Feb');
+                    3 : write('Mar');
+                    4 : write('Apr');
+                    5 : write('May');
+                    6 : write('Jun');
+                    7 : write('Jul');
+                    8 : write('Aug');
+                    9 : write('Sep');
+                    10: write('Oct');
+                    11: write('Nov');
+                    12: write('Dec');
+                    otherwise write('???')
+                end;
+                write('-',year);
+            end;
+        end;
+        
         procedure PadTimeField(value:integer; var result:string);
         
         begin
@@ -76,13 +105,29 @@ program Kernel;
                 result[2] := chr(ord('0')+value mod 10)
             end;
         end;
+        
+        procedure WriteTime(time:timerec);
+        
+        var
+            field:string;
+        
+        begin
+            with time do begin
+                PadTimeField(hour,field);
+                write(field,':');
+                PadTimeField(minute,field);
+                write(field,':');
+                PadTimeField(second,field);
+                write(field);
+            end
+        end;
 
         procedure greeting;
         
         var
             version, systype: byte;
             count:integer;
-            field:string;
+            cname:string;
         
         begin
             version := peek(-16607);
@@ -100,38 +145,20 @@ program Kernel;
             writeln;
             writeln('Based on UCSD Pascal II.1');
             writeln;
-            write('Current date is ');
-            with thedate do begin
-                write(day,'-');
-                case month of
-                    1 : write('Jan');
-                    2 : write('Feb');
-                    3 : write('Mar');
-                    4 : write('Apr');
-                    5 : write('May');
-                    6 : write('Jun');
-                    7 : write('Jul');
-                    8 : write('Aug');
-                    9 : write('Sep');
-                    10: write('Oct');
-                    11: write('Nov');
-                    12: write('Dec');
-                    otherwise write('???')
-                end;
-                writeln('-',year);
+            if hasClock then begin
+                write('Current time and date is ');
+                WriteTime(now.time);
+                write(', ');
+                WriteDate(thedate);
+                writeln();
+                ClockName(cname);
+                writeln(cname)
+            end else begin
+                write('Current date is ');
+                WriteDate(thedate);
+                writeln();
+                writeln('<No clock present>')
             end;
-            if hasClock then
-                with now.time do begin
-                    write('Current time is ');
-                    PadTimeField(hour,field);
-                    write(field,':');
-                    PadTimeField(minute,field);
-                    write(field,':');
-                    PadTimeField(second,field);
-                    writeln(field);
-                end
-            else
-                writeln('<No clock present>');
             writeln;
             write('Pascal system size is ');
             case systype of

@@ -1,0 +1,53 @@
+(*
+ * Copyright 2020 Craig McGeachie
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the Licnese is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *)
+unit Clock;
+
+interface
+
+type 
+    daterec = packed record
+        month: 0..12;
+        day  : 0..31;
+        year : 0..100
+    end {daterec};
+    timerec = packed record
+        hour   : 0..23;
+        minute : 0..59;
+        second : 0..59;
+    end {timerec}; 
+    clockrec = record
+        date: daterec;
+        time: timerec;
+    end {clockrec};
+
+function InitClock:boolean;
+procedure ReadClock(var now:clockrec);
+procedure ClockName(var name:string);
+
+implementation
+
+function InitClock;
+external;
+
+procedure ReadClock;
+external;
+
+procedure ClockName;
+external;
+
+begin
+end.
+

@@ -60,8 +60,9 @@ However the P-machine internals were documented, so I came up with an external
 assembly procedure that read the system registers, and walked the procedure call
 dynamic links back to the head of the call stack. It was very interesting, and
 took a long time to get right. Then I discovered a book that explained how to
-use the `$U-` compiler option. Doing things this way only took an hour or so to
-implement.
+use the `$U-` compiler option (*Advanced UCSD Pascal Programming Techniques* by
+Willner and Demchack, Prentice-Hall, 1985). Doing things this way only took an
+hour or so to implement.
 
 ## Source Catalogue
 
@@ -86,11 +87,16 @@ implement.
  * **`OLDSTART.TEXT`** -- The original version of a system startup application
    that would read the system RTC, and update the Pascal system date
    automatically. Uses `SYSSTUFF.TEXT` and `CLOCKSTUFF.TEXT`.
- * **`IIGSCLK.TEXT`** -- An Apple IIgs clock reading routine intended to be
-   linked directly into a program. Originally intended for use in KEGS and its descendants.
- * **`NOSLOTCLK.TEXT`** -- A No Slot Clock reading routine. Doesn't do a proper
-   search for the clock installation location. Simply assumes that it is
-   accessible at $C3xx. This works just fine inside an Applewin emulator.
+ * **`IIGSCLK.TEXT`** -- An Apple IIgs built-in clock reading routine intended
+   to be linked directly into a program. Works on a real IIgs ROM 03 and in
+   GSport with ROM 03.
+ * **`NOSLOTCLK.TEXT`** -- A No Slot Clock reading routine. Does a search for
+   the clock installation location the same way that version 1.4 of the ProDOS 8
+   driver does. Works on a real enhanced Apple //e with a Manilla Gear No-Slot
+   clock inserted under the CF ROM. It also works just fine inside an Applewin
+   emulator.
+ * **`CLOCK.TEXT`** -- A unit that defines the Pascal interface to call either
+   driver.
  * **`CALLRDTIME.TEXT`** -- A simple host program that links to either
    `IIGSCLK.TEXT` or `NOSLOTCLK.TEXT`, calls the ReadClock procedure and
    displays the current time and date.
@@ -161,7 +167,7 @@ installed.
   2. Link in `SYSSTUFF.CODE`, `SYSSTU.ASM.CODE`, and `CLOCKSTUFF.CODE`.
   3. Copy to the system disk as `SYSTEM.STARTUP`.
 
-### IIgs Clock External Procedure
+### IIgs Built-In Clock External Procedure
 
 Does not depend on anything else.
 
@@ -173,13 +179,19 @@ Does not depend on anything else.
 
   1. Assemble `NOSLOTCLK.TEXT`.
 
+### Clock Unit
+
+Does not depend on anything else.
+
+  1. Compile `CLOCK.TEXT`.
+
 ### Reading Time with the New External Procedures
 
-Depends on either the IIgs external procedure or the No-Slot Clock external
-procedure.
+Depends on the clock unit, and on either the IIgs external procedure or the
+No-Slot Clock external procedure.
 
   1. Compile `CALLRDTIME.TEXT`.
-  2. Link with either `IIGSCLK.CODE` or `NOSLOTCLK.CODE`.
+  2. Link with `CLOCK.CODE`, and either `IIGSCLK.CODE` or `NOSLOTCLK.CODE`.
 
 ### The New Startup
 
@@ -207,9 +219,7 @@ type
     timerec = packed record
         hour   : 0..23;
         minute : 0..59;
-        filler1: 0..31;
         second : 0..59;
-        filler2: 0..2047;
     end {timerec};
     clockrec = record
         date: daterec;
@@ -221,11 +231,19 @@ external;
 
 procedure ReadClock(var now:clockrec);
 external;
+
+procedure ClockName(var name:string);
+external;
 ```
-`InitClock` must be called and return `true` before `ReadClock` will return
-values. `InitClock` can be safely called multiple times. `ReadClock` can be
-safely called if `InitClock` has not been called or has returned `false`, but
-will return a zeroed out clock record.
+`InitClock` must be called and return `true` before `ReadClock` and `ClockName`
+will return meaningfull values. `InitClock` can be safely called multiple times.
+`ReadClock` and `ClockName` can be safely called if `InitClock` has not been
+called or has returned `false`, but will return a zeroed out clock record and a
+name indicating that there is no clock.
+
+The declarations above can be copied into your application inline, which is then
+compiled and linked to either clock driver, or you can use the clock unit and
+then link to both it and one of the clock drivers.
 
 ## Build Catalogue
 
@@ -234,3 +252,9 @@ will return a zeroed out clock record.
  * **`START.NSC.CODE`** -- `STARTUP.TEXT` compiled and linked with `NOSLOTCLK.CODE`.
    Ready to be transferred as `SYSTEM.STARTUP` to a startup disk for a system
    with a NoSlotClock installed. Works on AppleWin.
+ * **`CLOCK.CODE`** -- The Clock interface unit compiled and ready to be linked
+   with your application and a driver.
+ * **`NOSLOTCLK.CODE`** The No-Slot Clock driver assembled and ready to be
+   linked with your application.
+ * **`IIGSCLK.CODE`** The IIgs built-in clock driver assembled and ready to be
+   linked with your application.

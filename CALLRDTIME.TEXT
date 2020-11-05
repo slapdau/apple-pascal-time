@@ -15,33 +15,13 @@
  *)
 program Call_RDTIME;
 
-type
-    daterec = packed record
-        month: 0..12;
-        day  : 0..31;
-        year : 0..100
-    end {daterec};
-    timerec = packed record
-        hour   : 0..23;
-        minute : 0..59;
-        filler1: 0..31;
-        second : 0..59;
-        filler2: 0..2047;
-    end {timerec};
-    clockrec = record
-        date: daterec;
-        time: timerec
-    end {clockrec};
+uses
+    {$U clock.code} clock;
 
 var
     now:clockrec;
     field:string;
-
-function InitClock:boolean;
-external;
-
-procedure ReadClock(var now:clockrec);
-external;
+    name:string;
 
 procedure PadTimeField(value:integer; var result:string);
 
@@ -60,6 +40,9 @@ begin
         end
     else
         begin
+            ClockName(name);
+            write('Using ');
+            writeln(name);
             ReadClock(now);
             with now.time do begin
                 PadTimeField(hour,field);
@@ -70,7 +53,7 @@ begin
                 writeln(field);
             end;
             with now.date do
-                writeln(day:2,'/',month:2,'/',year:2)
+                writeln(day:2,'/',month:2,'/',year:2);
         end
 end.
 
