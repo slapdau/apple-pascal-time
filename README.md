@@ -64,6 +64,9 @@ use the `$U-` compiler option (*Advanced UCSD Pascal Programming Techniques* by
 Willner and Demchack, Prentice-Hall, 1985). Doing things this way only took an
 hour or so to implement.
 
+More information about the `$U-` compiler option can be found on Neil Parker's
+page [Undocumented Secrets of Apple Pascal][1].
+
 ## Source Catalogue
 
  * **`STDMACRO.TEXT`** -- A collection of useful assembly language macros from
@@ -87,6 +90,11 @@ hour or so to implement.
  * **`OLDSTART.TEXT`** -- The original version of a system startup application
    that would read the system RTC, and update the Pascal system date
    automatically. Uses `SYSSTUFF.TEXT` and `CLOCKSTUFF.TEXT`.
+ * **`THUNDER.TEXT`** -- A Thunderclock Plus clock card reading routine. Tests for
+   the card in the same way that the ProDOS loader does, by looking for signature
+   bytes in the ROM. The reading routine is based on code from the user manual that
+   reads the time directly from the card IO space. This avoids interfering with the
+   contents of $0200 onwards.
  * **`IIGSCLK.TEXT`** -- An Apple IIgs built-in clock reading routine intended
    to be linked directly into a program. Works on a real IIgs ROM 03 and in
    GSport with ROM 03.
@@ -95,6 +103,10 @@ hour or so to implement.
    driver does. Works on a real enhanced Apple //e with a Manilla Gear No-Slot
    clock inserted under the CF ROM. It also works just fine inside an Applewin
    emulator.
+ * **`MKYRTAB.TEXT`** -- Generates a year lookup table that is included in the assembly
+   of `THUNDER.TEXT`. The Thunderclock Plus card does not report the year and the 
+   driver requires a lookup based on date, month, and day of week.
+ * **`MKYRTAB.DATA`** -- Reference data used during the execution of `MKYRTAB.CODE`.
  * **`CLOCK.TEXT`** -- A unit that defines the Pascal interface to call either
    driver.
  * **`CALLRDTIME.TEXT`** -- A simple host program that links to either
@@ -167,6 +179,28 @@ installed.
   2. Link in `SYSSTUFF.CODE`, `SYSSTU.ASM.CODE`, and `CLOCKSTUFF.CODE`.
   3. Copy to the system disk as `SYSTEM.STARTUP`.
 
+### Thunderclock Plus Year Table Generator
+
+Does not depend on anything else.
+
+  1. Compile `MKYRTAB.TEXT`.
+
+### Thunderclock Plus Year Table
+
+Depends on the table generator, and its data file `MKYRTAB.DATA`.
+
+  1. Execute `MKYRTAB.CODE`. It will use a date and day of week to generate the
+     lookup table. When asked for the output file, you can use `CONSOLE:` to just
+     send it to the screen. However, it needs to be written to a file in order to
+     included in the assembly of the Thunderclock Plus clock driver. The driver code
+     expects the year lookup table to be defined in a file called `YEARTAB.TEXT`.
+
+### Thunderclock Plus External Procedure
+
+Depends on the year lookup table in `YEARTAB.TEXT`.
+
+  1. Assemble `THUNDER.TEXT`.
+
 ### IIgs Built-In Clock External Procedure
 
 Does not depend on anything else.
@@ -195,19 +229,19 @@ No-Slot Clock external procedure.
 
 ### The New Startup
 
-Depends on either the IIgs external procedure or the No-Slot Clock external
-procedure. Depends on `GLOBALS.TEXT`.
+Depends on either the Thunderclock Plus external procedure, the IIgs external
+procedure, or the No-Slot Clock external procedure. Depends on `GLOBALS.TEXT`.
 
   1. Compile `STARTUP.TEXT`.
-  2. Link with either `IIGSCLK.CODE` or `NOSLOTCLK.CODE`.
+  2. Link with either `THUNDER.CODE`, `IIGSCLK.CODE` or `NOSLOTCLK.CODE`.
   3. Copy to the system disk as `SYSTEM.STARTUP`.
 
 ## Usage
 
 This only describes the current model of clock driver, implemented in
-`IIGSCLK.TEXT` and `NOSLOTCLK.TEXT`, and called by `CALLRDTIME.TEXT` and
-`STARTUP.TEXT`. The interface into both drivers is summarised by the following
-declarations.
+`THUNDER.TEXT`, `IIGSCLK.TEXT`, and `NOSLOTCLK.TEXT`, and called by
+`CALLRDTIME.TEXT` and `STARTUP.TEXT`. The interface into both drivers
+is summarised by the following declarations.
 
 ```pascal
 type
@@ -249,14 +283,23 @@ then link to both it and one of the clock drivers.
 
 ## Build Catalogue
 
+ * **`START.THDR.CODE`** -- `STARTUP.TEXT` compiled and linked with `THUNDER.CODE`.
+   Ready to be transferred as `SYSTEM.STARTUP` to a startup disk for a system
+   with a Thunderclock Plus card installed.
  * **`START.IIGS.CODE`** -- `STARTUP.TEXT` compiled and linked with `IIGSCLK.CODE`.
-   Ready to be transferred as `SYSTEM.STARTUP` to a IIgs startup disk.
+   Ready to be transferred as `SYSTEM.STARTUP` to a IIgs startup disk. Works on
+   GSport.
  * **`START.NSC.CODE`** -- `STARTUP.TEXT` compiled and linked with `NOSLOTCLK.CODE`.
    Ready to be transferred as `SYSTEM.STARTUP` to a startup disk for a system
    with a NoSlotClock installed. Works on AppleWin.
  * **`CLOCK.CODE`** -- The Clock interface unit compiled and ready to be linked
    with your application and a driver.
- * **`NOSLOTCLK.CODE`** The No-Slot Clock driver assembled and ready to be
-   linked with your application.
+ * **`THUNDER.CODE`** The Thunderclock Plus clock driver assembled and ready to
+   be linked with your application.
  * **`IIGSCLK.CODE`** The IIgs built-in clock driver assembled and ready to be
    linked with your application.
+ * **`NOSLOTCLK.CODE`** The No-Slot Clock driver assembled and ready to be
+   linked with your application.
+
+## References
+ * [1]: https://llx.com/Neil/a2/passec.html

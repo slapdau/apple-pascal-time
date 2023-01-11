@@ -13,9 +13,8 @@ odds that I will.
 Things that I would greatly appreciate:
 
 - Drivers for more clocks. I may add more myself, but that will be contingent on
-  me getting clock hardware that I can develop and test against. The two big
-  names in Apple Clock hardware that are missing support are ThunderClock Plus
-  and Timemaster H.O.
+  me getting clock hardware that I can develop and test against. The big
+  name in Apple Clock hardware that is missing support is Timemaster H.O.
 - Support for setting time.
 
 ## Guidelines
@@ -53,10 +52,10 @@ organization, etc. This is mostly because changes like this mess with source
 control blame annotations.
 
 While your own contributions are not going to be exhaustively checked against a
-312 point code style guide,do roughly follow the style of the files you are
+312 point code style guide, do roughly follow the style of the files you are
 modifying so that your own contribution looks like it belongs there.
 
 That's about it in terms of formal guidelines. This project is currently very
 much a one man show in the quiet hours after dinner. There is no social media.
-There is no project website. Code review consists of a quick once over without
-too many "Ewww!" moments.
+There is no project website. Code review consists of a quick once over to check
+there aren't too many "Eugh!" moments.

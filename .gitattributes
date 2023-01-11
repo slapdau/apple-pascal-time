@@ -1,5 +1,6 @@
 *.TEXT              gitlab-language=pascal linguist-language=pascal
 SYSSTU.ASM.TEXT     gitlab-language=nasm linguist-language=nasm
+THUNDER.TEXT        gitlab-language=nasm linguist-language=nasm
 IIGSCLK.TEXT        gitlab-language=nasm linguist-language=nasm
 NOSLOTCLK.TEXT      gitlab-language=nasm linguist-language=nasm
 STDMACRO.TEXT       gitlab-language=nasm linguist-language=nasm

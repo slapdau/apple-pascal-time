@@ -1,0 +1,390 @@
+; Copyright 2020 Craig McGeachie
+;
+; Licensed under the Apache License, Version 2.0 (the "License");
+; you may not use this file except in compliance with the License.
+; You may obtain a copy of the License at
+;
+;      http://www.apache.org/licenses/LICENSE-2.0
+;
+; Unless required by applicable law or agreed to in writing, software
+; distributed under the Licnese is distributed on an "AS IS" BASIS,
+; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+; See the License for the specific language governing permissions and
+; limitations under the License.
+  
+        .macro  POP
+        pla
+        sta     %1
+        pla
+        sta     %1+1
+        .endm
+
+        .macro  PUSH
+        lda     %1+1
+        pha
+        lda     %1
+        pha
+        .endm
+
+        .macro  RMVBIAS
+        pla
+        pla
+        pla
+        pla
+        .endm
+
+        .macro  MOVE
+        lda     %1
+        sta     %2
+        lda     %1+1
+        sta     %2+1
+        .endm
+        
+        .func InitClock,0
+        .ref    RdVect
+        .ref    namePtr
+        .ref    TestThdr
+        
+RETURN  .equ    0.
+        
+        jsr     TestThdr
+        bcc     ExitInit
+        
+        pop     namePtr
+        pop     RdVect
+
+ExitInit
+        pop     RETURN
+        rmvbias
+        lda     #0
+        pha
+        rol     a
+        pha
+        push    RETURN
+        rts
+
+
+        .proc   ReadClock,1
+
+; Layout of the record pointed to by PTIME.
+; |---1--| |---0--|
+; yyyyyyyd ddddMMMM
+; |---3--| |---2--|
+; 00000mmm mmmhhhhh
+; |---5--| |---4--|
+; 00000000 00ssssss
+; 21:24:45, 12-Jan-18 stored as:
+; words 024c1, 00315, 0002d
+; bytes 0c1, 024, 015, 003, 02d, 000
+
+RETURN  .equ    0.
+PTIME   .equ    2.
+
+        pop     RETURN
+        pop     PTIME
+        push    RETURN
+        push    PTIME
+        
+        jsr     CallRdVec
+        
+        rts
+
+CallRdVec
+        ; Make a call to read the time in Pascal format if there is
+        ; a clock. Otherwise just clear the return to zeros. Set by
+        ; a call to InitClock.
+        .def    RdVect
+        jmp     @RdVect
+
+RdVect  .word   ClrWkSpc
+ClrWkSpc
+        ; Zero out workspace for return.
+        pop     PTIME
+        lda     #0
+        ldy     #5
+$1      sta     @PTIME,y
+        dey
+        bpl     $1
+        
+        rts
+        
+
+        .proc   ClockName,1
+        .def    namePtr
+
+RETURN  .equ    0.
+FROM    .equ    2.
+TO      .equ    4.
+
+        pop     RETURN
+        pop     TO
+        push    RETURN
+
+        move    namePtr,FROM
+        ldy     #0
+$1      lda     @FROM,y
+        beq     $2
+        iny
+        beq     $2
+        sta     @TO,y
+        bne     $1
+$2      tya
+        ldy     #0
+        sta     @TO,y
+
+        rts
+
+namePtr .word   NoClk
+
+NoClk   .ascii  "<No Clock>"
+        .byte   0
+
+        .proc   internal,0
+        rts
+
+RETURN  .equ    0.
+PSLOT   .equ    2.
+
+        .def    TestThdr
+TestThdr
+        lda     #000
+        sta     PSLOT
+        lda     #0C7
+        sta     PSLOT+1
+
+TestSlot
+        ldy     #006
+$1      lda     @PSLOT,Y
+        cmp     SigByte,Y
+        bne     NextSlot
+        dey
+        dey
+        bpl     $1
+        bmi     ClkGood
+
+NextSlot
+        dec     PSLOT+1
+        lda     PSLOT+1
+        cmp     #0C0
+        beq     ClkBad
+        bne     TestSlot
+        
+ClkBad  clc
+        rts
+        
+ClkGood lda     PSLOT+1
+        sta     ClkSlot
+        asl     a
+        asl     a
+        asl     a
+        asl     a
+        sta     ClkIO
+        jsr     SetName
+        pop     RETURN
+        push    RdVec
+        push    NmPtr
+        push    RETURN
+        sec
+        rts
+        
+ClkSlot .byte   000
+ClkIO   .byte   000
+SigByte .byte   008, 000, 028, 000, 058, 000, 070
+
+; Zero page variables
+PTIME   .equ    2.      ; Pointer to the date/time structure.
+TEMP    .equ    4.      ; General purpose temporary.
+SHFTCNT .equ    5.      ; Counter for bits in byte shifted out of clock.
+DATAOUT .equ    6.      ; A byte in the progress of being shifted out.
+RAWDATA .equ    7.      ; 5 bytes, the complete clock register.
+
+; The 5 bytes at RAWDATA are:
+; |----'----||--------||--------||--------||--------|
+; |Mnth'DoW || Day    || Hour   || Minute || Second |
+; All values are in binary.
+
+; Clock command register and constants
+CMDREG  .equ    0C080   ; The base command register. Offset by #$s0.
+CLK     .equ    002     ; Clock bit.
+STB     .equ    004     ; Strobe bit.
+REGHLD  .equ    000     ; Register hold command.
+REGSHF  .equ    008     ; Register shift command.
+TIMERD  .equ    018     ; Time read command.
+
+; Code to set register control and shift data adapted from Appendix E
+; of the Thunderclock Plus Installation and Operating Manual.
+
+; Set the register control. 
+SetCtl
+        sta     CMDREG,Y
+        ora     #STB
+        sta     CMDREG,Y
+        jsr     StbDly
+        eor     #STB
+        sta     CMDREG,Y
+StbDly                          ; Delay for 40us.
+        jsr     $1
+$1      pha
+        pha
+        pla
+        pla
+        rts
+
+; Shift one byte out of the clock register.
+ShftByte
+        lda     #008
+        sta     SHFTCNT
+$1      lda     CMDREG,Y
+        asl     a
+        ror     DATAOUT
+        lda     #0
+        sta     CMDREG,Y
+        ora     #CLK
+        sta     CMDREG,Y
+        eor     #CLK
+        sta     CMDREG,Y
+        dec     SHFTCNT
+        bne     $1
+        lda     DATAOUT
+        rts
+        
+; Convert a 2-digit BCD value in the accumulator to binary.
+; Return value also in accumulator.
+bcd2bin
+        pha
+        and     #00F
+        sta     TEMP
+        pla
+        and     #0F0
+        lsr     a
+        pha
+        lsr     a
+        lsr     a
+        adc     TEMP
+        sta     TEMP
+        pla
+        adc     TEMP
+        rts
+
+RdVec   .word   RdTime
+RdTime
+        pop     RETURN
+        pop     PTIME
+        push    RETURN
+        
+        ldy     ClkIO
+        
+        ; Load the clock value into the shift register and set the mode
+        ; to bit shifting.
+        lda     #TIMERD
+        jsr     SetCtl
+        lda     #REGSHF
+        jsr     SetCtl
+        
+        ; Shift out 5 bytes. The first 4 are 2-digit BCD values. The last
+        ; is two nibble sized values already in binary form.
+        ldx     #004
+$1      jsr     ShftByte
+        cpx     #000
+        beq     $2
+        jsr     bcd2bin
+$2      sta     RAWDATA,X
+        dex
+        bpl     $1
+        
+        ldy     #5
+        lda     #0
+        sta     @PTIME,Y
+        
+        dey
+        lda     RAWDATA+4       ; Seconds
+        sta     @PTIME,y
+        
+        dey
+        lda     #0
+        sta     TEMP
+        ldx     #3
+$3      ror     RAWDATA+3       ; Minutes
+        ror     TEMP
+        dex
+        bne     $3
+        lda     RAWDATA+3
+        sta     @PTIME,Y
+        
+        dey
+        lda     RAWDATA+2       ; Hours
+        ora     TEMP
+        sta     @PTIME,Y
+        
+        ; Split out the month and day of week into separate values.
+        lda     RAWDATA+0
+        and     #00F            ; Day of week
+        sta     TEMP
+        ldx     #4
+$4      lsr     RAWDATA+0
+        dex
+        bne     $4
+        ; Note that the upper bit of the Day of Week nibble is always
+        ; 0, so the carry status bit will be clear at this point.
+        
+        ; Use the Julian and Year tables to determine the year from
+        ; month, day, and day of week. Code and tables adapted from the
+        ; ProDOS Thunderclock driver.
+        ldx     RAWDATA+0       ; Month
+        lda     Julian-1,X
+        adc     RAWDATA+1       ; Day
+        sec
+$5      sbc     #7
+        bcs     $5
+        adc     #7
+        sbc     TEMP
+        bcs     $6
+        adc     #7
+$6      tax
+        lda     YearTab,X       ; Year
+        
+        dey
+        ldx     #3
+$7      asl     RAWDATA+1
+        dex
+        bne     $7
+        rol     RAWDATA+1       ; Upper bit of day
+        rol     a
+        sta     @PTIME,Y
+        
+        dey
+        lda     RAWDATA+0       ; Month
+        ora     RAWDATA+1       ; Lower 4 bits of day in upper nibble
+        sta     @PTIME,Y
+        
+        ; Return the clock to a register hold state.
+        ldy     ClkIO
+        lda     #REGHLD
+        jsr     SetCtl
+        
+        rts
+
+        ; Calculating the Julian day MOD 7 relies on
+        ; (A + B) MOD 7 = ((A MOD 7 + B) MOD 7)
+        ; where A is the cumulative number of days in the preceding months,
+        ; and B is the day in the current month.
+        ; Therefore each entry in the table is A MOD 7.
+Julian  .byte   000, 003, 003, 006, 001, 004
+        .byte   006, 002, 005, 000, 003, 005
+
+YearTab
+        .include YEARTAB.TEXT   ; Generate by executing MKYRTAB
+        
+Name    .ascii  "Thunder Clock (slot "
+SltNum  .ascii  "X)"
+        .byte   0
+NmPtr   .word   Name
+        
+SetName
+        lda     ClkSlot
+        and     #00F
+        ora     #030
+        sta     SltNum
+        rts
+
+        .end
