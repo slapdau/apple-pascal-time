@@ -219,7 +219,9 @@ type
     timerec = packed record
         hour   : 0..23;
         minute : 0..59;
+        filler1: 0..31;
         second : 0..59;
+        filler2: 0..1023
     end {timerec};
     clockrec = record
         date: daterec;
