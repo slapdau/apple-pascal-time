@@ -58,38 +58,18 @@ Apple documentation for the `$U-` compiler switch is very spartan:
 
 However the P-machine internals were documented, so I came up with an external
 assembly procedure that read the system registers, and walked the procedure call
-dynamic links back to the head of the call stack. It was very interesting, and
-took a long time to get right. Then I discovered a book that explained how to
-use the `$U-` compiler option (*Advanced UCSD Pascal Programming Techniques* by
-Willner and Demchack, Prentice-Hall, 1985). Doing things this way only took an
-hour or so to implement.
+dynamic links back to the head of the call stack.
+
+It was very interesting, and took a long time to get right. Then I discovered
+a book that explained how to use the `$U-` compiler option (*Advanced UCSD
+Pascal Programming Techniques* by Willner and Demchack, Prentice-Hall, 1985).
+Doing things this way only took an hour or so to implement.
 
 More information about the `$U-` compiler option can be found on Neil Parker's
 page [Undocumented Secrets of Apple Pascal][1].
 
 ## Source Catalogue
 
-* **`STDMACRO.TEXT`** -- A collection of useful assembly language macros from
-  appendix 3D of the Apple Pascal 1.3 manual.
-* **`SYSSTUFF.TEXT`** -- A unit for reading the Pascal system global variables.
-  Relies on an assembly routine in `SYSTU.ASM.TEXT`.
-* **`SYSSTU.ASM.TEXT`** -- An assembly routine for locating the global
-  variables of the Pascal runtime system. Operates by walking the dynamic stack
-  frames up to the top looking for the procedure at lexical level -1.
-  Positively fascinating. But using the `$U-` compiler option is a much better
-  solution. See `STARTUP.TEXT`.
-* **`USERDRIVER.TEXT`** -- The sample device driver, more or less, from appendix A
-  of the Apple Pascal 1.3 Device Support Tools documentation.
-* **`CLKUNIT.TEXT`** -- A unit driver that implements reading the IIgs clock as a
-  `UNITREAD` call.
-* **`CLKUNIT.DATA`** -- `SYSTEM.ATTACH` data for `CLKUNIT.TEXT`.
-* **`CLOCKSTUFF.TEXT`** -- A Pascal unit that provides the necessary type
-  definitions for calling the clock unit, and provides a skeleton routine that
-  hides the `UNITREAD` call.
-* **`READTIME.TEXT`** -- A sample application that uses `CLOCKSTUFF.TEXT`.
-* **`OLDSTART.TEXT`** -- The original version of a system startup application
-  that would read the system RTC, and update the Pascal system date
-  automatically. Uses `SYSSTUFF.TEXT` and `CLOCKSTUFF.TEXT`.
 * **`THUNDER.TEXT`** -- A Thunderclock Plus clock card reading routine. Tests for
   the card in the same way that the ProDOS loader does, by looking for signature
   bytes in the ROM. The reading routine is based on code from the user manual that
@@ -138,47 +118,6 @@ command.
 The following instructions skip interim steps that are helpful such as getting
 and saving the system work files.
 
-### System Stuff
-
-Depends on `STDMACRO.TEXT`.
-
-  1. Assemble `SYSSTU.ASM.TEXT`.
-  2. Compile `SYSSTUFF.TEXT`.
-  3. Link in `SYSSTU.ASM.CODE`.
-
-### Clock User Driver
-
-Does not depend on anything else.
-
-  1. Assemble `CLKUNIT.TEXT`.
-  2. Add to a library called `ATTACH.DRIVERS`.
-  3. Copy `ATTACH.DRIVERS`, `SYSTEM.ATTACH` to the system boot disk.
-  4. Either copy `CLKUNIT.DATA` to the system disk as `ATTACH.DATA`, or use
-     `ADMERGE.CODE` to add it to an existing `ATTACH.DATA`.
-
-### Original Clock Unit
-
-Does not directly depend on anything else. It's usage relies on the clock user
-driver being installed, and they must agree on the clock data structure.
-
-  1. Compile `CLOCKSTUFF.TEXT`.
-
-### Reading Time with the User Driver
-
-Depends on Clock Unit. Depends on the Clock user driver being installed.
-
-  1. Compile `READTIME.TEXT`.
-  2. Link in `CLOCKSTUFF.CODE`.
-
-### The Original Startup
-
-Depends on System Stuff and Clock Unit. Depends on the Clock user driver being
-installed.
-
-  1. Compile `OLDSTART.TEXT`.
-  2. Link in `SYSSTUFF.CODE`, `SYSSTU.ASM.CODE`, and `CLOCKSTUFF.CODE`.
-  3. Copy to the system disk as `SYSTEM.STARTUP`.
-
 ### Thunderclock Plus Year Table Generator
 
 Does not depend on anything else.
@@ -219,7 +158,7 @@ Does not depend on anything else.
 
   1. Compile `CLOCK.TEXT`.
 
-### Reading Time with the New External Procedures
+### Reading Time with the External Procedures
 
 Depends on the clock unit, and on either the IIgs external procedure or the
 No-Slot Clock external procedure.
@@ -227,7 +166,7 @@ No-Slot Clock external procedure.
   1. Compile `CALLRDTIME.TEXT`.
   2. Link with `CLOCK.CODE`, and either `IIGSCLK.CODE` or `NOSLOTCLK.CODE`.
 
-### The New Startup
+### Startup
 
 Depends on either the Thunderclock Plus external procedure, the IIgs external
 procedure, or the No-Slot Clock external procedure. Depends on `GLOBALS.TEXT`.

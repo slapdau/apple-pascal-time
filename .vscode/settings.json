@@ -1,17 +1,12 @@
 {
     "files.associations": {
-        "SYSSTU.ASM.TEXT": "asm",
+        "LICENSE": "plaintext",
         "THUNDER.TEXT": "asm",
         "IIGSCLK.TEXT": "asm",
         "NOSLOTCLK.TEXT": "asm",
-        "STDMACRO.TEXT": "asm",
-        "USERDRIVER.TEXT": "asm",
-        "CLKUNIT.TEXT": "asm",
-        "*.text": "pascal",
-        "*.txt": "pascal"
+        "*.text": "pascal"
     },
     "editor.detectIndentation": false,
 "editor.tabSize": 4,
-"pascal.formatter.engine": "ptop",
 "pascal.tags.autoGenerate": false
 }
