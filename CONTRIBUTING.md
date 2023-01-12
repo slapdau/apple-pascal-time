@@ -22,7 +22,7 @@ Things that I would greatly appreciate:
 Content is encouraged, but a well thought out defect report is welcome. That
 requires the following:
 
-- A clear description of how current behavior deviates from desired or expected
+- A clear description of how current behaviour deviates from desired or expected
   (note that is often a matter of opinion and someone else may disagree with
   you).
 - Instructions to reproduce. It's hard to give guidance on how detailed the

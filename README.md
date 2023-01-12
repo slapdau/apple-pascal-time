@@ -50,7 +50,7 @@ version, so I've kept a copy of the code.
 
 The other thing that changed as I went was access to the Pascal system global
 variables. I was fairly certain that system programs could access them, but the
-Apple documentation for the `$U-` compiler switch is very spartan: 
+Apple documentation for the `$U-` compiler switch is very spartan:
 
 > Compilation at the system level will produce meaningful results only if the
 > program was written with knowledge of the operating-system structure. Do not
@@ -69,59 +69,59 @@ page [Undocumented Secrets of Apple Pascal][1].
 
 ## Source Catalogue
 
- * **`STDMACRO.TEXT`** -- A collection of useful assembly language macros from
-   appendix 3D of the Apple Pascal 1.3 manual.
- * **`SYSSTUFF.TEXT`** -- A unit for reading the Pascal system global variables.
-   Relies on an assembly routine in `SYSTU.ASM.TEXT`.
- * **`SYSSTU.ASM.TEXT`** -- An assembly routine for locating the global
-   variables of the Pascal runtime system. Operates by walking the dynamic stack
-   frames up to the top looking for the procedure at lexical level -1.
-   Positively fascinating. But using the `$U-` compiler option is a much better
-   solution. See `STARTUP.TEXT`.
- * **`USERDRIVER.TEXT`** -- The sample device driver, more or less, from appendix A
-   of the Apple Pascal 1.3 Device Support Tools documentation.
- * **`CLKUNIT.TEXT`** -- A unit driver that implements reading the IIgs clock as a
-   `UNITREAD` call.
- * **`CLKUNIT.DATA`** -- `SYSTEM.ATTACH` data for `CLKUNIT.TEXT`.
- * **`CLOCKSTUFF.TEXT`** -- A Pascal unit that provides the necessary type
-   definitions for calling the clock unit, and provides a skeleton routine that
-   hides the `UNITREAD` call. 
- * **`READTIME.TEXT`** -- A sample application that uses `CLOCKSTUFF.TEXT`.
- * **`OLDSTART.TEXT`** -- The original version of a system startup application
-   that would read the system RTC, and update the Pascal system date
-   automatically. Uses `SYSSTUFF.TEXT` and `CLOCKSTUFF.TEXT`.
- * **`THUNDER.TEXT`** -- A Thunderclock Plus clock card reading routine. Tests for
-   the card in the same way that the ProDOS loader does, by looking for signature
-   bytes in the ROM. The reading routine is based on code from the user manual that
-   reads the time directly from the card IO space. This avoids interfering with the
-   contents of $0200 onwards.
- * **`IIGSCLK.TEXT`** -- An Apple IIgs built-in clock reading routine intended
-   to be linked directly into a program. Works on a real IIgs ROM 03 and in
-   GSport with ROM 03.
- * **`NOSLOTCLK.TEXT`** -- A No Slot Clock reading routine. Does a search for
-   the clock installation location the same way that version 1.4 of the ProDOS 8
-   driver does. Works on a real enhanced Apple //e with a Manilla Gear No-Slot
-   clock inserted under the CF ROM. It also works just fine inside an Applewin
-   emulator.
- * **`MKYRTAB.TEXT`** -- Generates a year lookup table that is included in the assembly
-   of `THUNDER.TEXT`. The Thunderclock Plus card does not report the year and the 
-   driver requires a lookup based on date, month, and day of week.
- * **`MKYRTAB.DATA`** -- Reference data used during the execution of `MKYRTAB.CODE`.
- * **`CLOCK.TEXT`** -- A unit that defines the Pascal interface to call either
-   driver.
- * **`CALLRDTIME.TEXT`** -- A simple host program that links to either
-   `IIGSCLK.TEXT` or `NOSLOTCLK.TEXT`, calls the ReadClock procedure and
-   displays the current time and date.
- * **`GLOBALS.TEXT`** -- `const`, `type` and `var` declarations for the Pascal
-   system global variables. Originally based on the released code of UCSD Pascal
-   I.5. Updated to match changes for Apple Pascal 1.3. For example, the core
-   unit table is extended from 12 to 20 units.
- * **`STARTUP.TEXT`** -- A startup program that will link to either
-   `IIGSCLK.TEXT` or `NOSLOTCLK.TEXT` and set the system date to the current
-   date. Compiled as a system program to access the system global variables.
-   This technique is explained in *Advanced UCSD Pascal Programming Techniques*
-   by Willner and Demchack (Prentice-Hall, 1985). It's described in section
-   5.0.12. The date is also written back to the system boot disk.
+* **`STDMACRO.TEXT`** -- A collection of useful assembly language macros from
+  appendix 3D of the Apple Pascal 1.3 manual.
+* **`SYSSTUFF.TEXT`** -- A unit for reading the Pascal system global variables.
+  Relies on an assembly routine in `SYSTU.ASM.TEXT`.
+* **`SYSSTU.ASM.TEXT`** -- An assembly routine for locating the global
+  variables of the Pascal runtime system. Operates by walking the dynamic stack
+  frames up to the top looking for the procedure at lexical level -1.
+  Positively fascinating. But using the `$U-` compiler option is a much better
+  solution. See `STARTUP.TEXT`.
+* **`USERDRIVER.TEXT`** -- The sample device driver, more or less, from appendix A
+  of the Apple Pascal 1.3 Device Support Tools documentation.
+* **`CLKUNIT.TEXT`** -- A unit driver that implements reading the IIgs clock as a
+  `UNITREAD` call.
+* **`CLKUNIT.DATA`** -- `SYSTEM.ATTACH` data for `CLKUNIT.TEXT`.
+* **`CLOCKSTUFF.TEXT`** -- A Pascal unit that provides the necessary type
+  definitions for calling the clock unit, and provides a skeleton routine that
+  hides the `UNITREAD` call.
+* **`READTIME.TEXT`** -- A sample application that uses `CLOCKSTUFF.TEXT`.
+* **`OLDSTART.TEXT`** -- The original version of a system startup application
+  that would read the system RTC, and update the Pascal system date
+  automatically. Uses `SYSSTUFF.TEXT` and `CLOCKSTUFF.TEXT`.
+* **`THUNDER.TEXT`** -- A Thunderclock Plus clock card reading routine. Tests for
+  the card in the same way that the ProDOS loader does, by looking for signature
+  bytes in the ROM. The reading routine is based on code from the user manual that
+  reads the time directly from the card IO space. This avoids interfering with the
+  contents of $0200 onwards.
+* **`IIGSCLK.TEXT`** -- An Apple IIgs built-in clock reading routine intended
+  to be linked directly into a program. Works on a real IIgs ROM 03 and in
+  GSport with ROM 03.
+* **`NOSLOTCLK.TEXT`** -- A No Slot Clock reading routine. Does a search for
+  the clock installation location the same way that version 1.4 of the ProDOS 8
+  driver does. Works on a real enhanced Apple //e with a Manilla Gear No-Slot
+  clock inserted under the CF ROM. It also works just fine inside an Applewin
+  emulator.
+* **`MKYRTAB.TEXT`** -- Generates a year lookup table that is included in the assembly
+  of `THUNDER.TEXT`. The Thunderclock Plus card does not report the year and the
+  driver requires a lookup based on date, month, and day of week.
+* **`MKYRTAB.DATA`** -- Reference data used during the execution of `MKYRTAB.CODE`.
+* **`CLOCK.TEXT`** -- A unit that defines the Pascal interface to call either
+  driver.
+* **`CALLRDTIME.TEXT`** -- A simple host program that links to either
+  `IIGSCLK.TEXT` or `NOSLOTCLK.TEXT`, calls the ReadClock procedure and
+  displays the current time and date.
+* **`GLOBALS.TEXT`** -- `const`, `type` and `var` declarations for the Pascal
+  system global variables. Originally based on the released code of UCSD Pascal
+  I.5. Updated to match changes for Apple Pascal 1.3. For example, the core
+  unit table is extended from 12 to 20 units.
+* **`STARTUP.TEXT`** -- A startup program that will link to either
+  `IIGSCLK.TEXT` or `NOSLOTCLK.TEXT` and set the system date to the current
+  date. Compiled as a system program to access the system global variables.
+  This technique is explained in *Advanced UCSD Pascal Programming Techniques*
+  by Willner and Demchack (Prentice-Hall, 1985). It's described in section
+  5.0.12. The date is also written back to the system boot disk.
 
 ## Building
 
@@ -156,7 +156,7 @@ Does not depend on anything else.
   4. Either copy `CLKUNIT.DATA` to the system disk as `ATTACH.DATA`, or use
      `ADMERGE.CODE` to add it to an existing `ATTACH.DATA`.
 
-### Clock Unit
+### Original Clock Unit
 
 Does not directly depend on anything else. It's usage relies on the clock user
 driver being installed, and they must agree on the clock data structure.
@@ -271,8 +271,9 @@ external;
 procedure ClockName(var name:string);
 external;
 ```
+
 `InitClock` must be called and return `true` before `ReadClock` and `ClockName`
-will return meaningfull values. `InitClock` can be safely called multiple times.
+will return meaningful values. `InitClock` can be safely called multiple times.
 `ReadClock` and `ClockName` can be safely called if `InitClock` has not been
 called or has returned `false`, but will return a zeroed out clock record and a
 name indicating that there is no clock.
@@ -283,23 +284,22 @@ then link to both it and one of the clock drivers.
 
 ## Build Catalogue
 
- * **`START.THDR.CODE`** -- `STARTUP.TEXT` compiled and linked with `THUNDER.CODE`.
-   Ready to be transferred as `SYSTEM.STARTUP` to a startup disk for a system
-   with a Thunderclock Plus card installed.
- * **`START.IIGS.CODE`** -- `STARTUP.TEXT` compiled and linked with `IIGSCLK.CODE`.
-   Ready to be transferred as `SYSTEM.STARTUP` to a IIgs startup disk. Works on
-   GSport.
- * **`START.NSC.CODE`** -- `STARTUP.TEXT` compiled and linked with `NOSLOTCLK.CODE`.
-   Ready to be transferred as `SYSTEM.STARTUP` to a startup disk for a system
-   with a NoSlotClock installed. Works on AppleWin.
- * **`CLOCK.CODE`** -- The Clock interface unit compiled and ready to be linked
-   with your application and a driver.
- * **`THUNDER.CODE`** The Thunderclock Plus clock driver assembled and ready to
-   be linked with your application.
- * **`IIGSCLK.CODE`** The IIgs built-in clock driver assembled and ready to be
-   linked with your application.
- * **`NOSLOTCLK.CODE`** The No-Slot Clock driver assembled and ready to be
-   linked with your application.
+* **`START.THDR.CODE`** -- `STARTUP.TEXT` compiled and linked with `THUNDER.CODE`.
+  Ready to be transferred as `SYSTEM.STARTUP` to a startup disk for a system
+  with a Thunderclock Plus card installed.
+* **`START.IIGS.CODE`** -- `STARTUP.TEXT` compiled and linked with `IIGSCLK.CODE`.
+  Ready to be transferred as `SYSTEM.STARTUP` to a IIgs startup disk. Works on
+  GSport.
+* **`START.NSC.CODE`** -- `STARTUP.TEXT` compiled and linked with `NOSLOTCLK.CODE`.
+  Ready to be transferred as `SYSTEM.STARTUP` to a startup disk for a system
+  with a NoSlotClock installed. Works on AppleWin.
+* **`CLOCK.CODE`** -- The Clock interface unit compiled and ready to be linked
+  with your application and a driver.
+* **`THUNDER.CODE`** The Thunderclock Plus clock driver assembled and ready to
+  be linked with your application.
+* **`IIGSCLK.CODE`** The IIgs built-in clock driver assembled and ready to be
+  linked with your application.
+* **`NOSLOTCLK.CODE`** The No-Slot Clock driver assembled and ready to be
+  linked with your application.
 
-## References
- * [1]: https://llx.com/Neil/a2/passec.html
+[1]: https://llx.com/Neil/a2/passec.html
